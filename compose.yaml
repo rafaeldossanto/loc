@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: 'postgis/postgis:latest'
+    environment:
+      - 'POSTGRES_DB=trilha_localizacao'
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=myuser'
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
