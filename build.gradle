@@ -18,6 +18,25 @@ repositories {
 	mavenCentral()
 }
 
+ext {
+	testcontainersVersion = '1.20.4'
+}
+
+// SourceSet dedicado para testes de integracao (src/integrationTest/java).
+sourceSets {
+	integrationTest {
+		java.srcDir file('src/integrationTest/java')
+		resources.srcDir file('src/integrationTest/resources')
+		compileClasspath += sourceSets.main.output + sourceSets.test.output
+		runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+	}
+}
+
+configurations {
+	integrationTestImplementation.extendsFrom testImplementation
+	integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.hibernate.orm:hibernate-spatial'
@@ -30,15 +49,40 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat-runtime'
+
+	// Testes de unidade (Mockito puro + AssertJ + JUnit 5)
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
+	testImplementation 'org.mockito:mockito-junit-jupiter'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// Testes de integracao (Testcontainers + PostGIS)
+	integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	integrationTestImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+	integrationTestImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
 }
 
+// 'test' roda SOMENTE testes de unidade e exclui qualquer @Tag("integracao").
 tasks.named('test') {
+	useJUnitPlatform {
+		excludeTags 'integracao'
+	}
+}
+
+// 'integrationTest' roda os @SpringBootTest com PostGIS real via Testcontainers.
+tasks.register('integrationTest', Test) {
+	description = 'Executa os testes de integracao (Testcontainers).'
+	group = 'verification'
+	testClassesDirs = sourceSets.integrationTest.output.classesDirs
+	classpath = sourceSets.integrationTest.runtimeClasspath
 	useJUnitPlatform()
+	shouldRunAfter tasks.named('test')
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('integrationTest')
 }

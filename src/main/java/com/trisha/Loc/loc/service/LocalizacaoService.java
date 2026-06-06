@@ -127,7 +127,7 @@ public class LocalizacaoService {
         SessaoRastreamento sessao = sessaoRepository.findById(sessaoId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
 
-        if (sessao.getStatus() != StatusSessao.EM_ANDAMENTO) {
+        if (!StatusSessao.EM_ANDAMENTO.equals(sessao.getStatus())) {
             throw new IllegalArgumentException("Sessao nao esta em andamento");
         }
         return sessao;
