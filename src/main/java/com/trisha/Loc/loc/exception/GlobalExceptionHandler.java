@@ -26,13 +26,20 @@ public class GlobalExceptionHandler {
         String mensagem = ex.getBindingResult().getFieldErrors().stream()
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .reduce("", (a, b) -> a + " | " + b);
+        log.warn("[EXCEPTION] Validacao: {}", mensagem);
         return buildResponse(HttpStatus.BAD_REQUEST, mensagem);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
+        log.error("[EXCEPTION] RuntimeException: {}", ex.getMessage(), ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno no servidor");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("[EXCEPTION] Erro inesperado: {}", ex.getMessage(), ex);
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno no servidor");
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erro inesperado");
     }
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String mensagem) {
