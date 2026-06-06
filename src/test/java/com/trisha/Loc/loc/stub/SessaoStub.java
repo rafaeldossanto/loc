@@ -34,8 +34,14 @@ public final class SessaoStub {
                 .iniciadaEm(LocalDateTime.now());
     }
 
+    /** Request padrao: termino automatico desligado (defaults aplicados no mapper). */
     public static SessaoRequest umRequest() {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID);
+        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null);
+    }
+
+    /** Request com termino automatico ligado e raio customizado. */
+    public static SessaoRequest umRequestComTermino(double distanciaMetros) {
+        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, true, distanciaMetros);
     }
 
     public static PontoGps.PontoGpsBuilder umPonto(int ordem, double latitude, double longitude) {

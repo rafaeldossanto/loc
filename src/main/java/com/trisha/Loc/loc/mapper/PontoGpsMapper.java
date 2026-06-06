@@ -26,7 +26,19 @@ public class PontoGpsMapper {
                 .build();
     }
 
+    /**
+     * Resposta sem informacao de proximidade — usada em listagens de pontos,
+     * onde o aviso de termino nao se aplica.
+     */
     public static PontoGpsResponse toResponse(PontoGps entity) {
+        return toResponse(entity, null, null);
+    }
+
+    /**
+     * Resposta enriquecida com o estado de proximidade ao ponto inicial,
+     * usada na resposta de registrarPonto quando o termino automatico esta ligado.
+     */
+    public static PontoGpsResponse toResponse(PontoGps entity, Boolean proximoDoInicio, Double distanciaDoInicioMetros) {
         return PontoGpsResponse.builder()
                 .id(entity.getId())
                 .sessaoId(entity.getSessao().getId())
@@ -37,6 +49,8 @@ public class PontoGpsMapper {
                 .velocidade(entity.getVelocidade())
                 .ordem(entity.getOrdem())
                 .registradoEm(entity.getRegistradoEm())
+                .proximoDoInicio(proximoDoInicio)
+                .distanciaDoInicioMetros(distanciaDoInicioMetros)
                 .build();
     }
 }

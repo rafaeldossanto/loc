@@ -11,6 +11,8 @@ public record SessaoResponse(
         String caminhoId,
         String usuarioId,
         StatusSessao status,
+        Boolean terminoAutomatico,
+        Double distanciaTerminoMetros,
         Double distanciaTotalKm,
         LocalDateTime iniciadaEm,
         LocalDateTime finalizadaEm

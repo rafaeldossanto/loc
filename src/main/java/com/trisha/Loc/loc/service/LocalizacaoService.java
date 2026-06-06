@@ -50,10 +50,35 @@ public class LocalizacaoService {
         SessaoRastreamento sessao = findSessaoAtiva(request.sessaoId());
 
         int ordem = pontoGpsRepository.countBySessaoId(sessao.getId()) + 1;
-        var ponto = pontoGpsRepository.save(PontoGpsMapper.toEntity(request, sessao, ordem));
+        PontoGps ponto = pontoGpsRepository.save(PontoGpsMapper.toEntity(request, sessao, ordem));
 
         log.debug("Ponto GPS #{} registrado na sessao {}", ordem, sessao.getId());
-        return PontoGpsMapper.toResponse(ponto);
+
+        return montarRespostaComProximidade(sessao, ponto, ordem);
+    }
+
+    private PontoGpsResponse montarRespostaComProximidade(SessaoRastreamento sessao, PontoGps ponto, int ordem) {
+        boolean recursoDesligado = !Boolean.TRUE.equals(sessao.getTerminoAutomatico());
+        boolean ehPontoInicial = ordem <= 1;
+
+        if (recursoDesligado || ehPontoInicial) {
+            return PontoGpsMapper.toResponse(ponto);
+        }
+
+        return pontoGpsRepository.findFirstBySessaoIdOrderByOrdemAsc(sessao.getId())
+                .map(inicial -> {
+                    double distancia = calcularDistanciaMetros(
+                            inicial.getLatitude(), inicial.getLongitude(),
+                            ponto.getLatitude(), ponto.getLongitude());
+                    boolean proximo = distancia <= sessao.getDistanciaTerminoMetros();
+
+                    if (proximo) {
+                        log.info("Sessao {} a {}m do inicio (limite {}m) — sugerindo termino",
+                                sessao.getId(), (int) distancia, sessao.getDistanciaTerminoMetros());
+                    }
+                    return PontoGpsMapper.toResponse(ponto, proximo, distancia);
+                })
+                .orElseGet(() -> PontoGpsMapper.toResponse(ponto));
     }
 
     public SessaoResponse finalizarSessao(String sessaoId) {
