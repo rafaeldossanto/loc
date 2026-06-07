@@ -3,6 +3,7 @@ package com.trisha.Loc.loc.controller;
 import com.trisha.Loc.loc.model.dto.request.PontoGpsRequest;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
 import com.trisha.Loc.loc.model.dto.response.PontoGpsResponse;
+import com.trisha.Loc.loc.model.dto.response.ProgressoSessaoResponse;
 import com.trisha.Loc.loc.model.dto.response.SessaoResponse;
 import com.trisha.Loc.loc.service.LocalizacaoService;
 import jakarta.validation.Valid;
@@ -49,13 +50,11 @@ public class LocalizacaoController {
         return localizacaoService.getSessaoByCaminho(caminhoId);
     }
 
-    @GetMapping("/pontos/sessao/{sessaoId}")
-    public List<PontoGpsResponse> getPontosBySessao(@PathVariable String sessaoId) {
-        return localizacaoService.getPontosBySessao(sessaoId);
+    @GetMapping("/sessao/{sessaoId}/progresso")
+    public ProgressoSessaoResponse getProgresso(@PathVariable String sessaoId) {
+        return localizacaoService.getProgresso(sessaoId);
     }
 
-    @GetMapping("/pontos/caminho/{caminhoId}")
-    public List<PontoGpsResponse> getPontosByCaminho(@PathVariable String caminhoId) {
-        return localizacaoService.getPontosByCaminho(caminhoId);
-    }
-}
+    @GetMapping("/pontos/sessao/{sessaoId}")
+    public List<PontoGpsResponse> getPontosBySessao(@PathVariable String sessaoId) {
+        retur

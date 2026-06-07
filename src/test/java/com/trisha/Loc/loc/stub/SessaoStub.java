@@ -49,15 +49,4 @@ public final class SessaoStub {
                 .id("ponto-" + ordem)
                 .sessao(umaSessao().build())
                 .latitude(latitude)
-                .longitude(longitude)
-                .altitude(800.0)
-                .precisao(5.0)
-                .velocidade(1.2)
-                .ordem(ordem)
-                .registradoEm(LocalDateTime.now());
-    }
-
-    public static PontoGpsRequest umRequestPonto() {
-        return new PontoGpsRequest(SESSAO_ID, LATITUDE, LONGITUDE, 800.0, 5.0, 1.2);
-    }
-}
+                .longitude(longitud

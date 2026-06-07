@@ -39,18 +39,4 @@ public class PontoGpsMapper {
      * usada na resposta de registrarPonto quando o termino automatico esta ligado.
      */
     public static PontoGpsResponse toResponse(PontoGps entity, Boolean proximoDoInicio, Double distanciaDoInicioMetros) {
-        return PontoGpsResponse.builder()
-                .id(entity.getId())
-                .sessaoId(entity.getSessao().getId())
-                .latitude(entity.getLatitude())
-                .longitude(entity.getLongitude())
-                .altitude(entity.getAltitude())
-                .precisao(entity.getPrecisao())
-                .velocidade(entity.getVelocidade())
-                .ordem(entity.getOrdem())
-                .registradoEm(entity.getRegistradoEm())
-                .proximoDoInicio(proximoDoInicio)
-                .distanciaDoInicioMetros(distanciaDoInicioMetros)
-                .build();
-    }
-}
+        return Pon

@@ -15,12 +15,4 @@ public record PontoGpsResponse(
         Double velocidade,
         Integer ordem,
         LocalDateTime registradoEm,
-        /**
-         * true quando o termino automatico esta ligado e este ponto esta dentro
-         * do raio configurado em relacao ao ponto inicial. O app usa isso para
-         * perguntar "finalizar ou continuar?" — o servico NUNCA finaliza sozinho.
-         */
-        Boolean proximoDoInicio,
-        /** Distancia (em metros) deste ponto ao ponto inicial; null se nao calculada. */
-        Double distanciaDoInicioMetros
-) {}
+    

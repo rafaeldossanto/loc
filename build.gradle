@@ -39,6 +39,8 @@ configurations {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.hibernate.orm:hibernate-spatial'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
@@ -47,42 +49,4 @@ dependencies {
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 	runtimeOnly 'org.postgresql:postgresql'
-	annotationProcessor 'org.projectlombok:lombok'
-	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat-runtime'
-
-	// Testes de unidade (Mockito puro + AssertJ + JUnit 5)
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
-	testImplementation 'org.mockito:mockito-junit-jupiter'
-	testCompileOnly 'org.projectlombok:lombok'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	testAnnotationProcessor 'org.projectlombok:lombok'
-
-	// Testes de integracao (Testcontainers + PostGIS)
-	integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
-	integrationTestImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
-	integrationTestImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
-}
-
-// 'test' roda SOMENTE testes de unidade e exclui qualquer @Tag("integracao").
-tasks.named('test') {
-	useJUnitPlatform {
-		excludeTags 'integracao'
-	}
-}
-
-// 'integrationTest' roda os @SpringBootTest com PostGIS real via Testcontainers.
-tasks.register('integrationTest', Test) {
-	description = 'Executa os testes de integracao (Testcontainers).'
-	group = 'verification'
-	testClassesDirs = sourceSets.integrationTest.output.classesDirs
-	classpath = sourceSets.integrationTest.runtimeClasspath
-	useJUnitPlatform()
-	shouldRunAfter tasks.named('test')
-}
-
-tasks.named('check') {
-	dependsOn tasks.named('integrationTest')
-}
+	annotationProces

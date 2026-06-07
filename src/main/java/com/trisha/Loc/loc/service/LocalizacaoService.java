@@ -7,6 +7,7 @@ import com.trisha.Loc.loc.mapper.SessaoMapper;
 import com.trisha.Loc.loc.model.dto.request.PontoGpsRequest;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
 import com.trisha.Loc.loc.model.dto.response.PontoGpsResponse;
+import com.trisha.Loc.loc.model.dto.response.ProgressoSessaoResponse;
 import com.trisha.Loc.loc.model.dto.response.SessaoResponse;
 import com.trisha.Loc.loc.model.enums.StatusSessao;
 import com.trisha.Loc.loc.repository.PontoGpsRepository;
@@ -16,8 +17,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import static java.util.Objects.nonNull;
 
 @Service
 @RequiredArgsConstructor
@@ -125,26 +129,4 @@ public class LocalizacaoService {
         return getPontosBySessao(sessao.getId());
     }
 
-    private double calcularDistanciaTotal(List<PontoGps> pontos) {
-        if (pontos.size() < 2) return 0.0;
-
-        double total = 0.0;
-        for (int i = 1; i < pontos.size(); i++) {
-            total += GeoUtils.distanciaMetros(
-                    pontos.get(i - 1).getLatitude(), pontos.get(i - 1).getLongitude(),
-                    pontos.get(i).getLatitude(), pontos.get(i).getLongitude()
-            );
-        }
-        return total;
-    }
-
-    private SessaoRastreamento findSessaoAtiva(String sessaoId) {
-        SessaoRastreamento sessao = sessaoRepository.findById(sessaoId)
-                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
-
-        if (!StatusSessao.EM_ANDAMENTO.equals(sessao.getStatus())) {
-            throw new IllegalArgumentException("Sessao nao esta em andamento");
-        }
-        return sessao;
-    }
-}
+    /*
