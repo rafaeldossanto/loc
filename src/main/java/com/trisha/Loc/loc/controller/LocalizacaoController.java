@@ -57,4 +57,11 @@ public class LocalizacaoController {
 
     @GetMapping("/pontos/sessao/{sessaoId}")
     public List<PontoGpsResponse> getPontosBySessao(@PathVariable String sessaoId) {
-        retur
+        return localizacaoService.getPontosBySessao(sessaoId);
+    }
+
+    @GetMapping("/pontos/caminho/{caminhoId}")
+    public List<PontoGpsResponse> getPontosByCaminho(@PathVariable String caminhoId) {
+        return localizacaoService.getPontosByCaminho(caminhoId);
+    }
+}

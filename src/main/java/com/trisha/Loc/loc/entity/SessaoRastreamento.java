@@ -39,4 +39,28 @@ public class SessaoRastreamento {
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private StatusSes
+    private StatusSessao status = StatusSessao.EM_ANDAMENTO;
+
+    /**
+     * Quando ligado, o servico avisa (sem finalizar sozinho) ao detectar que o
+     * usuario voltou para perto do ponto inicial do caminho. Default: desligado.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean terminoAutomatico = false;
+
+    /**
+     * Raio, em metros, que dispara o aviso de termino automatico. Default: 5m.
+     * Configuravel pelo usuario ao iniciar a sessao.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Double distanciaTerminoMetros = 5.0;
+
+    private Double distanciaTotalKm;
+
+    @Column(nullable = false)
+    private LocalDateTime iniciadaEm;
+
+    private LocalDateTime finalizadaEm;
+}

@@ -5,4 +5,14 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * Registro de um ponto GPS na sessao. sessaoId e as coordenadas sao
- * obrigatorios; al
+ * obrigatorios; altitude, precisao e velocidade sao opcionais (nem todo
+ * dispositivo fornece).
+ */
+public record PontoGpsRequest(
+        @NotBlank String sessaoId,
+        @NotNull Double latitude,
+        @NotNull Double longitude,
+        Double altitude,
+        Double precisao,
+        Double velocidade
+) {}

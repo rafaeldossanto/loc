@@ -202,4 +202,176 @@ class LocalizacaoServiceTest {
         SessaoResponse response = service.iniciarSessao(request);
 
         assertThat(response.terminoAutomatico()).isTrue();
-        assertThat(response.distanciaTerminoMetros()).isEqualTo(10
+        assertThat(response.distanciaTerminoMetros()).isEqualTo(10.0);
+    }
+
+    @Test
+    @DisplayName("registrarPonto deve falhar quando sessao nao esta em andamento")
+    void deveFalharRegistrarEmSessaoFinalizada() {
+        PontoGpsRequest request = SessaoStub.umRequestPonto();
+        SessaoRastreamento sessao = SessaoStub.umaSessao().status(StatusSessao.FINALIZADA).build();
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+
+        assertThatThrownBy(() -> service.registrarPonto(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("nao esta em andamento");
+
+        verify(pontoGpsRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("finalizarSessao deve calcular distancia via Haversine e marcar FINALIZADA")
+    void deveFinalizarComDistancia() {
+        SessaoRastreamento sessao = SessaoStub.umaSessao().build();
+        // Dois pontos separados por ~1 grau de longitude no equador (~104km nessa latitude).
+        List<PontoGps> pontos = List.of(
+                SessaoStub.umPonto(1, -20.4350, -41.7920).build(),
+                SessaoStub.umPonto(2, -20.4350, -41.7820).build()
+        );
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID)).thenReturn(pontos);
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessaoResponse response = service.finalizarSessao(SessaoStub.SESSAO_ID);
+
+        assertThat(response.status()).isEqualTo(StatusSessao.FINALIZADA);
+        assertThat(response.finalizadaEm()).isNotNull();
+        // ~0.01 grau de longitude nessa latitude ~ 1.04 km. Faixa generosa para evitar fragilidade.
+        assertThat(response.distanciaTotalKm()).isBetween(0.9, 1.2);
+    }
+
+    @Test
+    @DisplayName("finalizarSessao deve resultar em distancia zero com menos de 2 pontos")
+    void deveFinalizarSemPontos() {
+        SessaoRastreamento sessao = SessaoStub.umaSessao().build();
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID))
+                .thenReturn(List.of(SessaoStub.umPonto(1, -20.43, -41.79).build()));
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessaoResponse response = service.finalizarSessao(SessaoStub.SESSAO_ID);
+
+        assertThat(response.distanciaTotalKm()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("cancelarSessao deve marcar CANCELADA")
+    void deveCancelarSessao() {
+        SessaoRastreamento sessao = SessaoStub.umaSessao().build();
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessaoResponse response = service.cancelarSessao(SessaoStub.SESSAO_ID);
+
+        assertThat(response.status()).isEqualTo(StatusSessao.CANCELADA);
+        assertThat(response.finalizadaEm()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("findSessaoAtiva deve falhar quando sessao nao existe")
+    void deveFalharSessaoInexistente() {
+        when(sessaoRepository.findById("inexistente")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.cancelarSessao("inexistente"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Sessao nao encontrada");
+    }
+
+    @Test
+    @DisplayName("getSessaoByCaminho deve retornar sessao do caminho")
+    void deveBuscarPorCaminho() {
+        when(sessaoRepository.findByCaminhoId(SessaoStub.CAMINHO_ID))
+                .thenReturn(Optional.of(SessaoStub.umaSessao().build()));
+
+        SessaoResponse response = service.getSessaoByCaminho(SessaoStub.CAMINHO_ID);
+
+        assertThat(response.caminhoId()).isEqualTo(SessaoStub.CAMINHO_ID);
+    }
+
+    @Test
+    @DisplayName("getSessaoByCaminho deve falhar quando nao ha sessao")
+    void deveFalharBuscarPorCaminhoInexistente() {
+        when(sessaoRepository.findByCaminhoId("sem-sessao")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getSessaoByCaminho("sem-sessao"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Sessao nao encontrada para esse caminho");
+    }
+
+    @Test
+    @DisplayName("getPontosBySessao deve mapear lista ordenada")
+    void deveListarPontosPorSessao() {
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID))
+                .thenReturn(List.of(
+                        SessaoStub.umPonto(1, -20.43, -41.79).build(),
+                        SessaoStub.umPonto(2, -20.43, -41.78).build()
+                ));
+
+        List<PontoGpsResponse> response = service.getPontosBySessao(SessaoStub.SESSAO_ID);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).ordem()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("getPontosByCaminho deve resolver a sessao e retornar seus pontos")
+    void deveListarPontosPorCaminho() {
+        when(sessaoRepository.findByCaminhoId(SessaoStub.CAMINHO_ID))
+                .thenReturn(Optional.of(SessaoStub.umaSessao().build()));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID))
+                .thenReturn(List.of(SessaoStub.umPonto(1, -20.43, -41.79).build()));
+
+        List<PontoGpsResponse> response = service.getPontosByCaminho(SessaoStub.CAMINHO_ID);
+
+        assertThat(response).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("getProgresso em sessao em andamento recalcula a distancia pelos pontos")
+    void deveCalcularProgressoEmAndamento() {
+        // Sessao em andamento (sem distanciaTotalKm gravada): recalcula pelos pontos.
+        SessaoRastreamento sessao = SessaoStub.umaSessao()
+                .distanciaTotalKm(null)
+                .iniciadaEm(java.time.LocalDateTime.now().minusMinutes(30))
+                .build();
+        List<PontoGps> pontos = List.of(
+                SessaoStub.umPonto(1, -20.4350, -41.7920).build(),
+                SessaoStub.umPonto(2, -20.4350, -41.7820).build()
+        );
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID)).thenReturn(pontos);
+
+        ProgressoSessaoResponse progresso = service.getProgresso(SessaoStub.SESSAO_ID);
+
+        assertThat(progresso.totalPontos()).isEqualTo(2);
+        assertThat(progresso.distanciaPercorridaKm()).isBetween(0.9, 1.2);
+        assertThat(progresso.tempoDecorridoSegundos()).isGreaterThanOrEqualTo(1800L);
+    }
+
+    @Test
+    @DisplayName("getProgresso em sessao finalizada usa a distancia gravada")
+    void deveUsarDistanciaGravadaQuandoFinalizada() {
+        SessaoRastreamento sessao = SessaoStub.umaSessao()
+                .status(StatusSessao.FINALIZADA)
+                .distanciaTotalKm(12.5)
+                .finalizadaEm(java.time.LocalDateTime.now())
+                .build();
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID)).thenReturn(List.of());
+
+        ProgressoSessaoResponse progresso = service.getProgresso(SessaoStub.SESSAO_ID);
+
+        assertThat(progresso.distanciaPercorridaKm()).isEqualTo(12.5);
+        assertThat(progresso.status()).isEqualTo(StatusSessao.FINALIZADA);
+    }
+
+    @Test
+    @DisplayName("getProgresso deve falhar quando sessao nao existe")
+    void deveFalharProgressoInexistente() {
+        when(sessaoRepository.findById("inexistente")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getProgresso("inexistente"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Sessao nao encontrada");
+    }
+}

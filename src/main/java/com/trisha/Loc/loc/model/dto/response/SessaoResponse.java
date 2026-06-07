@@ -14,3 +14,6 @@ public record SessaoResponse(
         Boolean terminoAutomatico,
         Double distanciaTerminoMetros,
         Double distanciaTotalKm,
+        LocalDateTime iniciadaEm,
+        LocalDateTime finalizadaEm
+) {}

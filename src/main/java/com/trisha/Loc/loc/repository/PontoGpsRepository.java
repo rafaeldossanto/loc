@@ -10,4 +10,8 @@ public interface PontoGpsRepository extends JpaRepository<PontoGps, String> {
 
     List<PontoGps> findBySessaoIdOrderByOrdemAsc(String sessaoId);
 
-    int countBySe
+    int countBySessaoId(String sessaoId);
+
+    /** Ponto inicial da sessao (ordem 1): referencia para o termino automatico. */
+    Optional<PontoGps> findFirstBySessaoIdOrderByOrdemAsc(String sessaoId);
+}

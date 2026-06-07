@@ -28,4 +28,28 @@ public class SessaoMapper {
                 .build();
     }
 
-    public static SessaoResponse toResponse(Ses
+    public static SessaoResponse toResponse(SessaoRastreamento entity) {
+        return SessaoResponse.builder()
+                .id(entity.getId())
+                .caminhoId(entity.getCaminhoId())
+                .usuarioId(entity.getUsuarioId())
+                .status(entity.getStatus())
+                .terminoAutomatico(entity.getTerminoAutomatico())
+                .distanciaTerminoMetros(entity.getDistanciaTerminoMetros())
+                .distanciaTotalKm(entity.getDistanciaTotalKm())
+                .iniciadaEm(entity.getIniciadaEm())
+                .finalizadaEm(entity.getFinalizadaEm())
+                .build();
+    }
+
+    /**
+     * Aplica o default de 5m quando nao informado. Um raio <= 0 nao faz sentido
+     * (desligaria a deteccao mesmo com o recurso ligado), entao cai no default.
+     */
+    private static double definirDistanciaTermino(Double informada) {
+        if (isNull(informada) || informada <= 0) {
+            return DISTANCIA_TERMINO_PADRAO_METROS;
+        }
+        return informada;
+    }
+}

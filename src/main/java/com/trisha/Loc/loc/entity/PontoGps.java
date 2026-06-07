@@ -46,4 +46,9 @@ public class PontoGps {
 
     private Double velocidade;
 
-    @Colu
+    @Column(nullable = false)
+    private Integer ordem;
+
+    @Column(nullable = false)
+    private LocalDateTime registradoEm;
+}

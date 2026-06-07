@@ -129,4 +129,54 @@ public class LocalizacaoService {
         return getPontosBySessao(sessao.getId());
     }
 
-    /*
+    /**
+     * Progresso em tempo real da sessao: distancia ja percorrida (recalculada a
+     * partir dos pontos GPS) e tempo decorrido desde o inicio. Para o app exibir
+     * durante a trilha em andamento. Em sessao finalizada, usa a distancia ja
+     * gravada; em andamento, recalcula com os pontos atuais.
+     */
+    public ProgressoSessaoResponse getProgresso(String sessaoId) {
+        SessaoRastreamento sessao = sessaoRepository.findById(sessaoId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+
+        List<PontoGps> pontos = pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(sessaoId);
+
+        double distanciaKm = nonNull(sessao.getDistanciaTotalKm())
+                ? sessao.getDistanciaTotalKm()
+                : calcularDistanciaTotal(pontos) / 1000.0;
+
+        LocalDateTime fim = nonNull(sessao.getFinalizadaEm()) ? sessao.getFinalizadaEm() : LocalDateTime.now();
+        long tempoSegundos = Duration.between(sessao.getIniciadaEm(), fim).getSeconds();
+
+        return ProgressoSessaoResponse.builder()
+                .sessaoId(sessao.getId())
+                .status(sessao.getStatus())
+                .distanciaPercorridaKm(distanciaKm)
+                .tempoDecorridoSegundos(tempoSegundos)
+                .totalPontos(pontos.size())
+                .build();
+    }
+
+    private double calcularDistanciaTotal(List<PontoGps> pontos) {
+        if (pontos.size() < 2) return 0.0;
+
+        double total = 0.0;
+        for (int i = 1; i < pontos.size(); i++) {
+            total += GeoUtils.distanciaMetros(
+                    pontos.get(i - 1).getLatitude(), pontos.get(i - 1).getLongitude(),
+                    pontos.get(i).getLatitude(), pontos.get(i).getLongitude()
+            );
+        }
+        return total;
+    }
+
+    private SessaoRastreamento findSessaoAtiva(String sessaoId) {
+        SessaoRastreamento sessao = sessaoRepository.findById(sessaoId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+
+        if (!StatusSessao.EM_ANDAMENTO.equals(sessao.getStatus())) {
+            throw new IllegalArgumentException("Sessao nao esta em andamento");
+        }
+        return sessao;
+    }
+}
