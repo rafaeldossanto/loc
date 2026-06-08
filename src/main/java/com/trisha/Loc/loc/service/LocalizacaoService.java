@@ -13,6 +13,7 @@ import com.trisha.Loc.loc.model.enums.StatusSessao;
 import com.trisha.Loc.loc.repository.PontoGpsRepository;
 import com.trisha.Loc.loc.repository.SessaoRastreamentoRepository;
 import com.trisha.Loc.loc.util.GeoUtils;
+import com.trisha.Loc.loc.util.TrajetoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,8 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.nonNull;
 
@@ -30,6 +33,9 @@ public class LocalizacaoService {
 
     private final SessaoRastreamentoRepository sessaoRepository;
     private final PontoGpsRepository pontoGpsRepository;
+
+    /** Desvio maximo (m) para um ponto ser considerado redundante num trecho reto. */
+    private static final double TOLERANCIA_SIMPLIFICACAO_METROS = 8.0;
 
     public SessaoResponse iniciarSessao(SessaoRequest request) {
         log.info("Iniciando sessao de rastreamento para caminho: {}", request.caminhoId());
@@ -90,7 +96,10 @@ public class LocalizacaoService {
 
         List<PontoGps> pontos = pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(sessaoId);
 
+        // A distancia usa TODOS os pontos; a simplificacao so reduz o que fica
+        // armazenado (remove os redundantes de trechos retilineos).
         double distanciaTotal = calcularDistanciaTotal(pontos);
+        simplificarTrajeto(pontos);
 
         sessao.setStatus(StatusSessao.FINALIZADA);
         sessao.setDistanciaTotalKm(distanciaTotal / 1000.0);
@@ -98,6 +107,29 @@ public class LocalizacaoService {
 
         log.info("Sessao {} finalizada — distancia: {}km", sessaoId, sessao.getDistanciaTotalKm());
         return SessaoMapper.toResponse(sessaoRepository.save(sessao));
+    }
+
+    /**
+     * Remove do banco os pontos redundantes de trechos retilineos (Douglas-Peucker),
+     * preservando a forma da trilha. Roda na finalizacao, com o trajeto ja completo.
+     */
+    private void simplificarTrajeto(List<PontoGps> pontos) {
+        if (pontos.size() < 3) {
+            return;
+        }
+
+        List<PontoGps> mantidos = TrajetoUtils.simplificar(pontos, TOLERANCIA_SIMPLIFICACAO_METROS);
+        Set<String> idsMantidos = mantidos.stream().map(PontoGps::getId).collect(Collectors.toSet());
+
+        List<PontoGps> removidos = pontos.stream()
+                .filter(ponto -> !idsMantidos.contains(ponto.getId()))
+                .toList();
+
+        if (!removidos.isEmpty()) {
+            pontoGpsRepository.deleteAll(removidos);
+            log.info("Trajeto da sessao simplificado: {} de {} pontos removidos ({} mantidos)",
+                    removidos.size(), pontos.size(), mantidos.size());
+        }
     }
 
     public SessaoResponse cancelarSessao(String sessaoId) {

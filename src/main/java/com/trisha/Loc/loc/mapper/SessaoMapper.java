@@ -3,6 +3,7 @@ package com.trisha.Loc.loc.mapper;
 import com.trisha.Loc.loc.entity.SessaoRastreamento;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
 import com.trisha.Loc.loc.model.dto.response.SessaoResponse;
+import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -16,6 +17,7 @@ public class SessaoMapper {
 
     private static final boolean TERMINO_AUTOMATICO_PADRAO = false;
     private static final double DISTANCIA_TERMINO_PADRAO_METROS = 5.0;
+    private static final VisibilidadeSessao VISIBILIDADE_PADRAO = VisibilidadeSessao.PRIVADO;
 
     public static SessaoRastreamento toEntity(SessaoRequest request) {
         return SessaoRastreamento.builder()
@@ -24,6 +26,7 @@ public class SessaoMapper {
                 .usuarioId(request.usuarioId())
                 .terminoAutomatico(nonNull(request.terminoAutomatico()) ? request.terminoAutomatico() : TERMINO_AUTOMATICO_PADRAO)
                 .distanciaTerminoMetros(definirDistanciaTermino(request.distanciaTerminoMetros()))
+                .visibilidade(nonNull(request.visibilidade()) ? request.visibilidade() : VISIBILIDADE_PADRAO)
                 .iniciadaEm(LocalDateTime.now())
                 .build();
     }
@@ -34,6 +37,7 @@ public class SessaoMapper {
                 .caminhoId(entity.getCaminhoId())
                 .usuarioId(entity.getUsuarioId())
                 .status(entity.getStatus())
+                .visibilidade(entity.getVisibilidade())
                 .terminoAutomatico(entity.getTerminoAutomatico())
                 .distanciaTerminoMetros(entity.getDistanciaTerminoMetros())
                 .distanciaTotalKm(entity.getDistanciaTotalKm())

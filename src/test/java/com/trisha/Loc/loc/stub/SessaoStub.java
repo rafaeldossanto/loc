@@ -5,6 +5,7 @@ import com.trisha.Loc.loc.entity.SessaoRastreamento;
 import com.trisha.Loc.loc.model.dto.request.PontoGpsRequest;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
 import com.trisha.Loc.loc.model.enums.StatusSessao;
+import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
 
 import java.time.LocalDateTime;
 
@@ -36,12 +37,17 @@ public final class SessaoStub {
 
     /** Request padrao: termino automatico desligado (defaults aplicados no mapper). */
     public static SessaoRequest umRequest() {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null);
+        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null, null);
     }
 
     /** Request com termino automatico ligado e raio customizado. */
     public static SessaoRequest umRequestComTermino(double distanciaMetros) {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, true, distanciaMetros);
+        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, true, distanciaMetros, null);
+    }
+
+    /** Request com visibilidade explicita (termino automatico desligado). */
+    public static SessaoRequest umRequestComVisibilidade(VisibilidadeSessao visibilidade) {
+        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null, visibilidade);
     }
 
     public static PontoGps.PontoGpsBuilder umPonto(int ordem, double latitude, double longitude) {

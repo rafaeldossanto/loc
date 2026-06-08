@@ -23,5 +23,11 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  # Pub/Sub usado como ponte do tempo real (localizacao ao vivo) entre instancias.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
 server:
   port: 8082

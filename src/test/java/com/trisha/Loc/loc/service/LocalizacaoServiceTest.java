@@ -8,12 +8,14 @@ import com.trisha.Loc.loc.model.dto.response.PontoGpsResponse;
 import com.trisha.Loc.loc.model.dto.response.ProgressoSessaoResponse;
 import com.trisha.Loc.loc.model.dto.response.SessaoResponse;
 import com.trisha.Loc.loc.model.enums.StatusSessao;
+import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
 import com.trisha.Loc.loc.repository.PontoGpsRepository;
 import com.trisha.Loc.loc.repository.SessaoRastreamentoRepository;
 import com.trisha.Loc.loc.stub.SessaoStub;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -206,6 +208,34 @@ class LocalizacaoServiceTest {
     }
 
     @Test
+    @DisplayName("iniciarSessao deve aplicar visibilidade PRIVADO por padrao")
+    void deveAplicarVisibilidadePadrao() {
+        SessaoRequest request = SessaoStub.umRequest();
+        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+                .thenReturn(Optional.empty());
+        when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessaoResponse response = service.iniciarSessao(request);
+
+        assertThat(response.visibilidade()).isEqualTo(VisibilidadeSessao.PRIVADO);
+    }
+
+    @Test
+    @DisplayName("iniciarSessao deve respeitar a visibilidade escolhida pelo usuario")
+    void deveRespeitarVisibilidadeEscolhida() {
+        SessaoRequest request = SessaoStub.umRequestComVisibilidade(VisibilidadeSessao.PUBLICO);
+        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+                .thenReturn(Optional.empty());
+        when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessaoResponse response = service.iniciarSessao(request);
+
+        assertThat(response.visibilidade()).isEqualTo(VisibilidadeSessao.PUBLICO);
+    }
+
+    @Test
     @DisplayName("registrarPonto deve falhar quando sessao nao esta em andamento")
     void deveFalharRegistrarEmSessaoFinalizada() {
         PontoGpsRequest request = SessaoStub.umRequestPonto();
@@ -252,6 +282,29 @@ class LocalizacaoServiceTest {
         SessaoResponse response = service.finalizarSessao(SessaoStub.SESSAO_ID);
 
         assertThat(response.distanciaTotalKm()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("finalizarSessao deve simplificar o trajeto removendo pontos redundantes")
+    void deveSimplificarTrajetoAoFinalizar() {
+        SessaoRastreamento sessao = SessaoStub.umaSessao().build();
+        // 4 pontos colineares: os de ordem 2 e 3 sao redundantes e devem sair.
+        List<PontoGps> pontos = List.of(
+                SessaoStub.umPonto(1, -20.4300, -41.7900).build(),
+                SessaoStub.umPonto(2, -20.4310, -41.7900).build(),
+                SessaoStub.umPonto(3, -20.4320, -41.7900).build(),
+                SessaoStub.umPonto(4, -20.4330, -41.7900).build()
+        );
+        when(sessaoRepository.findById(SessaoStub.SESSAO_ID)).thenReturn(Optional.of(sessao));
+        when(pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(SessaoStub.SESSAO_ID)).thenReturn(pontos);
+        when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.finalizarSessao(SessaoStub.SESSAO_ID);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PontoGps>> captor = ArgumentCaptor.forClass(List.class);
+        verify(pontoGpsRepository).deleteAll(captor.capture());
+        assertThat(captor.getValue()).extracting(PontoGps::getOrdem).containsExactly(2, 3);
     }
 
     @Test

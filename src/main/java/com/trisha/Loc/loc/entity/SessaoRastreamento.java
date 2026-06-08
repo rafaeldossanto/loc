@@ -1,6 +1,7 @@
 package com.trisha.Loc.loc.entity;
 
 import com.trisha.Loc.loc.model.enums.StatusSessao;
+import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,6 +57,15 @@ public class SessaoRastreamento {
     @Column(nullable = false)
     @Builder.Default
     private Double distanciaTerminoMetros = 5.0;
+
+    /**
+     * Quem pode acompanhar esta sessao ao vivo. Default seguro: PRIVADO — a
+     * localizacao so e exposta se o usuario optar por PUBLICO ou AMIGOS.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private VisibilidadeSessao visibilidade = VisibilidadeSessao.PRIVADO;
 
     private Double distanciaTotalKm;
 
