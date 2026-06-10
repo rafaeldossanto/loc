@@ -31,3 +31,11 @@ spring:
 
 server:
   port: 8082
+
+# Ingestao da telemetria GPS. O app mobile publica os pontos no broker e o
+# servico consome. QoS 1 + buffer no cliente cobrem o sinal fraco da trilha.
+mqtt:
+  broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+  client-id: ${MQTT_CLIENT_ID:loc-consumer}
+  topico: ${MQTT_TOPICO:localizacao/ponto}
+  qos: ${MQTT_QOS:1}

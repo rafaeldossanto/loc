@@ -10,5 +10,19 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # Pub/Sub da difusao ao vivo (push da posicao pros amigos entre instancias).
+  redis:
+    image: 'redis:7-alpine'
+    ports:
+      - '6379:6379'
+
+  # Broker MQTT: ingestao resiliente da telemetria GPS do app mobile.
+  mosquitto:
+    image: 'eclipse-mosquitto:2'
+    ports:
+      - '1883:1883'
+    volumes:
+      - './mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf'
+
 volumes:
   postgres_data:
