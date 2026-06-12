@@ -29,6 +29,13 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  # Resource server: valida o Bearer da app pela chave publica do Cadastro (JWKS).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWKS_URI:http://localhost:8080/oauth2/jwks}
+
 server:
   port: 8082
 
@@ -39,3 +46,7 @@ mqtt:
   client-id: ${MQTT_CLIENT_ID:loc-consumer}
   topico: ${MQTT_TOPICO:localizacao/ponto}
   qos: ${MQTT_QOS:1}
+
+# URL do servico APP — consultada para a visibilidade AMIGOS (sao-amigos).
+servicos:
+  app: ${SERVICO_APP_URL:http://localhost:8081}

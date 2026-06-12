@@ -45,6 +45,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	// Redis Pub/Sub: ponte do tempo real (localizacao ao vivo) entre instancias do servico.
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// Ingestao da telemetria GPS via MQTT (broker resiliente a sinal fraco na trilha).

@@ -46,12 +46,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve criar sessao quando usuario e caminho estao livres")
     void deveIniciarSessao() {
         SessaoRequest request = SessaoStub.umRequest();
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
         when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessaoResponse response = service.iniciarSessao(request);
+        SessaoResponse response = service.iniciarSessao(SessaoStub.USUARIO_ID, request);
 
         assertThat(response.caminhoId()).isEqualTo(request.caminhoId());
         assertThat(response.status()).isEqualTo(StatusSessao.EM_ANDAMENTO);
@@ -62,10 +62,10 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve falhar quando usuario ja tem sessao em andamento")
     void deveFalharSessaoEmAndamento() {
         SessaoRequest request = SessaoStub.umRequest();
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.of(SessaoStub.umaSessao().build()));
 
-        assertThatThrownBy(() -> service.iniciarSessao(request))
+        assertThatThrownBy(() -> service.iniciarSessao(SessaoStub.USUARIO_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("ja possui uma sessao em andamento");
 
@@ -76,12 +76,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve falhar quando ja existe sessao para o caminho")
     void deveFalharSessaoCaminhoDuplicado() {
         SessaoRequest request = SessaoStub.umRequest();
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId()))
                 .thenReturn(Optional.of(SessaoStub.umaSessao().build()));
 
-        assertThatThrownBy(() -> service.iniciarSessao(request))
+        assertThatThrownBy(() -> service.iniciarSessao(SessaoStub.USUARIO_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Ja existe uma sessao para esse caminho");
 
@@ -181,12 +181,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve aplicar defaults de termino automatico (desligado, 5m)")
     void deveAplicarDefaultsTermino() {
         SessaoRequest request = SessaoStub.umRequest();
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
         when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessaoResponse response = service.iniciarSessao(request);
+        SessaoResponse response = service.iniciarSessao(SessaoStub.USUARIO_ID, request);
 
         assertThat(response.terminoAutomatico()).isFalse();
         assertThat(response.distanciaTerminoMetros()).isEqualTo(5.0);
@@ -196,12 +196,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve respeitar termino ligado com raio customizado")
     void deveRespeitarTerminoCustomizado() {
         SessaoRequest request = SessaoStub.umRequestComTermino(10.0);
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
         when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessaoResponse response = service.iniciarSessao(request);
+        SessaoResponse response = service.iniciarSessao(SessaoStub.USUARIO_ID, request);
 
         assertThat(response.terminoAutomatico()).isTrue();
         assertThat(response.distanciaTerminoMetros()).isEqualTo(10.0);
@@ -211,12 +211,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve aplicar visibilidade PRIVADO por padrao")
     void deveAplicarVisibilidadePadrao() {
         SessaoRequest request = SessaoStub.umRequest();
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
         when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessaoResponse response = service.iniciarSessao(request);
+        SessaoResponse response = service.iniciarSessao(SessaoStub.USUARIO_ID, request);
 
         assertThat(response.visibilidade()).isEqualTo(VisibilidadeSessao.PRIVADO);
     }
@@ -225,12 +225,12 @@ class LocalizacaoServiceTest {
     @DisplayName("iniciarSessao deve respeitar a visibilidade escolhida pelo usuario")
     void deveRespeitarVisibilidadeEscolhida() {
         SessaoRequest request = SessaoStub.umRequestComVisibilidade(VisibilidadeSessao.PUBLICO);
-        when(sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO))
+        when(sessaoRepository.findByUsuarioIdAndStatus(SessaoStub.USUARIO_ID, StatusSessao.EM_ANDAMENTO))
                 .thenReturn(Optional.empty());
         when(sessaoRepository.findByCaminhoId(request.caminhoId())).thenReturn(Optional.empty());
         when(sessaoRepository.save(any(SessaoRastreamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessaoResponse response = service.iniciarSessao(request);
+        SessaoResponse response = service.iniciarSessao(SessaoStub.USUARIO_ID, request);
 
         assertThat(response.visibilidade()).isEqualTo(VisibilidadeSessao.PUBLICO);
     }

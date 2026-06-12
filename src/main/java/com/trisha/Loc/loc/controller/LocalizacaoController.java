@@ -1,5 +1,6 @@
 package com.trisha.Loc.loc.controller;
 
+import com.trisha.Loc.loc.auth.UsuarioAutenticado;
 import com.trisha.Loc.loc.model.dto.request.PontoGpsRequest;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
 import com.trisha.Loc.loc.model.dto.response.PontoGpsResponse;
@@ -26,8 +27,8 @@ public class LocalizacaoController {
     private final LocalizacaoService localizacaoService;
 
     @PostMapping("/sessao")
-    public SessaoResponse iniciarSessao(@RequestBody @Valid SessaoRequest request) {
-        return localizacaoService.iniciarSessao(request);
+    public SessaoResponse iniciarSessao(UsuarioAutenticado usuario, @RequestBody @Valid SessaoRequest request) {
+        return localizacaoService.iniciarSessao(usuario.id(), request);
     }
 
     @PostMapping("/ponto")

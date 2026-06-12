@@ -22,9 +22,12 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final com.trisha.Loc.loc.websocket.ConnectAutenticacaoInterceptor connectInterceptor;
     private final SubscribeAutorizacaoInterceptor autorizacaoInterceptor;
 
-    public WebSocketConfig(SubscribeAutorizacaoInterceptor autorizacaoInterceptor) {
+    public WebSocketConfig(com.trisha.Loc.loc.websocket.ConnectAutenticacaoInterceptor connectInterceptor,
+                           SubscribeAutorizacaoInterceptor autorizacaoInterceptor) {
+        this.connectInterceptor = connectInterceptor;
         this.autorizacaoInterceptor = autorizacaoInterceptor;
     }
 
@@ -43,6 +46,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(autorizacaoInterceptor);
+        registration.interceptors(connectInterceptor, autorizacaoInterceptor);
     }
 }

@@ -37,17 +37,17 @@ public final class SessaoStub {
 
     /** Request padrao: termino automatico desligado (defaults aplicados no mapper). */
     public static SessaoRequest umRequest() {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null, null);
+        return new SessaoRequest(CAMINHO_ID,null, null, null);
     }
 
     /** Request com termino automatico ligado e raio customizado. */
     public static SessaoRequest umRequestComTermino(double distanciaMetros) {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, true, distanciaMetros, null);
+        return new SessaoRequest(CAMINHO_ID,true, distanciaMetros, null);
     }
 
     /** Request com visibilidade explicita (termino automatico desligado). */
     public static SessaoRequest umRequestComVisibilidade(VisibilidadeSessao visibilidade) {
-        return new SessaoRequest(CAMINHO_ID, USUARIO_ID, null, null, visibilidade);
+        return new SessaoRequest(CAMINHO_ID,null, null, visibilidade);
     }
 
     public static PontoGps.PontoGpsBuilder umPonto(int ordem, double latitude, double longitude) {
@@ -64,6 +64,6 @@ public final class SessaoStub {
     }
 
     public static PontoGpsRequest umRequestPonto() {
-        return new PontoGpsRequest(SESSAO_ID, LATITUDE, LONGITUDE, 800.0, 5.0, 1.2);
+        return new PontoGpsRequest(SESSAO_ID, LATITUDE, LONGITUDE, 800.0, 5.0, 1.2, USUARIO_ID);
     }
 }

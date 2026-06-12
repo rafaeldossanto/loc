@@ -37,10 +37,10 @@ public class LocalizacaoService {
     /** Desvio maximo (m) para um ponto ser considerado redundante num trecho reto. */
     private static final double TOLERANCIA_SIMPLIFICACAO_METROS = 8.0;
 
-    public SessaoResponse iniciarSessao(SessaoRequest request) {
+    public SessaoResponse iniciarSessao(String usuarioId, SessaoRequest request) {
         log.info("Iniciando sessao de rastreamento para caminho: {}", request.caminhoId());
 
-        sessaoRepository.findByUsuarioIdAndStatus(request.usuarioId(), StatusSessao.EM_ANDAMENTO)
+        sessaoRepository.findByUsuarioIdAndStatus(usuarioId, StatusSessao.EM_ANDAMENTO)
                 .ifPresent(s -> {
                     throw new IllegalArgumentException("Usuario ja possui uma sessao em andamento");
                 });
@@ -50,7 +50,7 @@ public class LocalizacaoService {
                     throw new IllegalArgumentException("Ja existe uma sessao para esse caminho");
                 });
 
-        var sessao = sessaoRepository.save(SessaoMapper.toEntity(request));
+        var sessao = sessaoRepository.save(SessaoMapper.toEntity(request, usuarioId));
         log.info("Sessao {} iniciada", sessao.getId());
         return SessaoMapper.toResponse(sessao);
     }
@@ -96,8 +96,6 @@ public class LocalizacaoService {
 
         List<PontoGps> pontos = pontoGpsRepository.findBySessaoIdOrderByOrdemAsc(sessaoId);
 
-        // A distancia usa TODOS os pontos; a simplificacao so reduz o que fica
-        // armazenado (remove os redundantes de trechos retilineos).
         double distanciaTotal = calcularDistanciaTotal(pontos);
         simplificarTrajeto(pontos);
 
@@ -180,13 +178,7 @@ public class LocalizacaoService {
         LocalDateTime fim = nonNull(sessao.getFinalizadaEm()) ? sessao.getFinalizadaEm() : LocalDateTime.now();
         long tempoSegundos = Duration.between(sessao.getIniciadaEm(), fim).getSeconds();
 
-        return ProgressoSessaoResponse.builder()
-                .sessaoId(sessao.getId())
-                .status(sessao.getStatus())
-                .distanciaPercorridaKm(distanciaKm)
-                .tempoDecorridoSegundos(tempoSegundos)
-                .totalPontos(pontos.size())
-                .build();
+        return SessaoMapper.toProgresso(sessao, distanciaKm, tempoSegundos, pontos.size());
     }
 
     private double calcularDistanciaTotal(List<PontoGps> pontos) {

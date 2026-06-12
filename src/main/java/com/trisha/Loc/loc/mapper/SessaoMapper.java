@@ -2,6 +2,7 @@ package com.trisha.Loc.loc.mapper;
 
 import com.trisha.Loc.loc.entity.SessaoRastreamento;
 import com.trisha.Loc.loc.model.dto.request.SessaoRequest;
+import com.trisha.Loc.loc.model.dto.response.ProgressoSessaoResponse;
 import com.trisha.Loc.loc.model.dto.response.SessaoResponse;
 import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
 
@@ -19,11 +20,11 @@ public class SessaoMapper {
     private static final double DISTANCIA_TERMINO_PADRAO_METROS = 5.0;
     private static final VisibilidadeSessao VISIBILIDADE_PADRAO = VisibilidadeSessao.PRIVADO;
 
-    public static SessaoRastreamento toEntity(SessaoRequest request) {
+    public static SessaoRastreamento toEntity(SessaoRequest request, String usuarioId) {
         return SessaoRastreamento.builder()
                 .id(UUID.randomUUID().toString())
                 .caminhoId(request.caminhoId())
-                .usuarioId(request.usuarioId())
+                .usuarioId(usuarioId)
                 .terminoAutomatico(nonNull(request.terminoAutomatico()) ? request.terminoAutomatico() : TERMINO_AUTOMATICO_PADRAO)
                 .distanciaTerminoMetros(definirDistanciaTermino(request.distanciaTerminoMetros()))
                 .visibilidade(nonNull(request.visibilidade()) ? request.visibilidade() : VISIBILIDADE_PADRAO)
@@ -43,6 +44,19 @@ public class SessaoMapper {
                 .distanciaTotalKm(entity.getDistanciaTotalKm())
                 .iniciadaEm(entity.getIniciadaEm())
                 .finalizadaEm(entity.getFinalizadaEm())
+                .build();
+    }
+
+    public static ProgressoSessaoResponse toProgresso(SessaoRastreamento sessao,
+                                                      double distanciaPercorridaKm,
+                                                      long tempoDecorridoSegundos,
+                                                      int totalPontos) {
+        return ProgressoSessaoResponse.builder()
+                .sessaoId(sessao.getId())
+                .status(sessao.getStatus())
+                .distanciaPercorridaKm(distanciaPercorridaKm)
+                .tempoDecorridoSegundos(tempoDecorridoSegundos)
+                .totalPontos(totalPontos)
                 .build();
     }
 

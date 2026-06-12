@@ -14,5 +14,6 @@ public record PontoGpsRequest(
         @NotNull Double longitude,
         Double altitude,
         Double precisao,
-        Double velocidade
+        Double velocidade,
+        String usuarioId
 ) {}
