@@ -39,6 +39,11 @@ spring:
 server:
   port: 8082
 
+# traceId (correlacao de requisicoes) recebido da borda no header X-Trace-Id.
+logging:
+  pattern:
+    level: "%5p [trace:%X{traceId:-}]"
+
 # Ingestao da telemetria GPS. O app mobile publica os pontos no broker e o
 # servico consome. QoS 1 + buffer no cliente cobrem o sinal fraco da trilha.
 mqtt:

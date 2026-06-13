@@ -2,12 +2,14 @@ package com.trisha.Loc.loc.entity;
 
 import com.trisha.Loc.loc.model.enums.StatusSessao;
 import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
+import com.trisha.Loc.loc.trace.TraceContext;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -73,4 +75,14 @@ public class SessaoRastreamento {
     private LocalDateTime iniciadaEm;
 
     private LocalDateTime finalizadaEm;
+
+    @Column(name = "trace_id")
+    private String traceId;
+
+    @PrePersist
+    void aoCriar() {
+        if (traceId == null) {
+            traceId = TraceContext.atual();
+        }
+    }
 }
