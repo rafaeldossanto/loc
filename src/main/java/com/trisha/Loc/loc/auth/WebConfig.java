@@ -7,13 +7,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 /**
- * Registra o resolver que injeta o {@link UsuarioAutenticado} nos controllers.
+ * Registra o resolver que injeta o {@link AuthenticatedUser} nos controllers.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-        resolvers.add(new UsuarioAutenticadoArgumentResolver());
+        resolvers.add(new AuthenticatedUserArgumentResolver());
     }
 }

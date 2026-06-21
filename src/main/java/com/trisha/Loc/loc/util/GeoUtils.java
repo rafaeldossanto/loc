@@ -4,7 +4,7 @@ import lombok.experimental.UtilityClass;
 
 /**
  * Utilitarios de geolocalizacao. Concentra o calculo de distancia entre
- * coordenadas para que o LocalizacaoService nao misture trigonometria com
+ * coordenadas para que o LocationService nao misture trigonometria com
  * regra de negocio (distancia total da trilha, proximidade do ponto inicial).
  *
  * Nota de arquitetura: o mesmo calculo existe no servico APP. A duplicacao
@@ -15,19 +15,19 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class GeoUtils {
 
-    private static final int RAIO_TERRA_METROS = 6371000;
-    private static final double METROS_POR_GRAU = RAIO_TERRA_METROS * Math.PI / 180.0;
+    private static final int EARTH_RADIUS_METERS = 6371000;
+    private static final double METERS_PER_DEGREE = EARTH_RADIUS_METERS * Math.PI / 180.0;
 
     /**
      * Distancia em metros entre dois pontos geograficos (formula de Haversine).
      */
-    public static double distanciaMetros(double lat1, double lon1, double lat2, double lon2) {
+    public static double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        return RAIO_TERRA_METROS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     /**
@@ -36,22 +36,22 @@ public class GeoUtils {
      * uma trilha. E a medida que o Douglas-Peucker usa para decidir se um ponto
      * intermediario desvia o bastante da reta para valer a pena manter.
      */
-    public static double distanciaPontoSegmentoMetros(double latP, double lonP,
+    public static double pointToSegmentDistanceMeters(double latP, double lonP,
                                                       double latA, double lonA,
                                                       double latB, double lonB) {
-        double mPorGrauLon = METROS_POR_GRAU * Math.cos(Math.toRadians(latA));
+        double mPerDegreeLon = METERS_PER_DEGREE * Math.cos(Math.toRadians(latA));
 
-        double bx = (lonB - lonA) * mPorGrauLon;
-        double by = (latB - latA) * METROS_POR_GRAU;
-        double px = (lonP - lonA) * mPorGrauLon;
-        double py = (latP - latA) * METROS_POR_GRAU;
+        double bx = (lonB - lonA) * mPerDegreeLon;
+        double by = (latB - latA) * METERS_PER_DEGREE;
+        double px = (lonP - lonA) * mPerDegreeLon;
+        double py = (latP - latA) * METERS_PER_DEGREE;
 
-        double comprimentoQuadrado = bx * bx + by * by;
-        if (comprimentoQuadrado == 0.0) {
+        double squaredLength = bx * bx + by * by;
+        if (squaredLength == 0.0) {
             return Math.hypot(px, py); // A e B coincidem: vira distancia ponto-ponto.
         }
 
-        double t = (px * bx + py * by) / comprimentoQuadrado;
+        double t = (px * bx + py * by) / squaredLength;
         t = Math.max(0.0, Math.min(1.0, t)); // limita a projecao ao segmento [A,B]
 
         return Math.hypot(px - t * bx, py - t * by);

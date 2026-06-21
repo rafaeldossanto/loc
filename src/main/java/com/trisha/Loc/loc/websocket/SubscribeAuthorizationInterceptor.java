@@ -1,9 +1,9 @@
 package com.trisha.Loc.loc.websocket;
 
-import com.trisha.Loc.loc.client.AppAmizadeClient;
-import com.trisha.Loc.loc.entity.SessaoRastreamento;
-import com.trisha.Loc.loc.model.enums.VisibilidadeSessao;
-import com.trisha.Loc.loc.repository.SessaoRastreamentoRepository;
+import com.trisha.Loc.loc.client.AppFriendshipClient;
+import com.trisha.Loc.loc.entity.TrackingSession;
+import com.trisha.Loc.loc.model.enums.SessionVisibility;
+import com.trisha.Loc.loc.repository.TrackingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -26,12 +26,12 @@ import static java.util.Objects.isNull;
  */
 @Component
 @RequiredArgsConstructor
-public class SubscribeAutorizacaoInterceptor implements ChannelInterceptor {
+public class SubscribeAuthorizationInterceptor implements ChannelInterceptor {
 
-    private static final String PREFIXO_TOPICO_SESSAO = "/topic/sessao/";
+    private static final String SESSION_TOPIC_PREFIX = "/topic/sessao/";
 
-    private final SessaoRastreamentoRepository sessaoRepository;
-    private final AppAmizadeClient appAmizadeClient;
+    private final TrackingSessionRepository sessionRepository;
+    private final AppFriendshipClient appFriendshipClient;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -41,42 +41,42 @@ public class SubscribeAutorizacaoInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        String destino = accessor.getDestination();
-        if (isNull(destino) || !destino.startsWith(PREFIXO_TOPICO_SESSAO)) {
+        String destination = accessor.getDestination();
+        if (isNull(destination) || !destination.startsWith(SESSION_TOPIC_PREFIX)) {
             return message;
         }
 
-        String sessaoId = destino.substring(PREFIXO_TOPICO_SESSAO.length());
-        SessaoRastreamento sessao = sessaoRepository.findById(sessaoId)
-                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada: " + sessaoId));
+        String sessionId = destination.substring(SESSION_TOPIC_PREFIX.length());
+        TrackingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada: " + sessionId));
 
-        if (VisibilidadeSessao.PRIVADO.equals(sessao.getVisibilidade())) {
+        if (SessionVisibility.PRIVADO.equals(session.getVisibility())) {
             throw new IllegalStateException("Sessao privada — acompanhamento ao vivo nao permitido");
         }
-        if (VisibilidadeSessao.AMIGOS.equals(sessao.getVisibilidade())) {
-            autorizarAmigos(accessor, sessao);
+        if (SessionVisibility.AMIGOS.equals(session.getVisibility())) {
+            authorizeFriends(accessor, session);
         }
         return message;
     }
 
-    private void autorizarAmigos(StompHeaderAccessor accessor, SessaoRastreamento sessao) {
+    private void authorizeFriends(StompHeaderAccessor accessor, TrackingSession session) {
         Principal user = accessor.getUser();
         if (isNull(user)) {
             throw new IllegalStateException("Assinante nao autenticado");
         }
 
-        String assinante = user.getName();
-        if (assinante.equals(sessao.getUsuarioId())) {
+        String subscriber = user.getName();
+        if (subscriber.equals(session.getUserId())) {
             return;
         }
 
-        if (!appAmizadeClient.saoAmigos(assinante, sessao.getUsuarioId(), token(accessor))) {
+        if (!appFriendshipClient.areFriends(subscriber, session.getUserId(), token(accessor))) {
             throw new IllegalStateException("Apenas amigos podem acompanhar esta sessao");
         }
     }
 
     private String token(StompHeaderAccessor accessor) {
-        Map<String, Object> atributos = accessor.getSessionAttributes();
-        return isNull(atributos) ? null : (String) atributos.get(ConnectAutenticacaoInterceptor.ATRIBUTO_TOKEN);
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        return isNull(attributes) ? null : (String) attributes.get(ConnectAuthenticationInterceptor.TOKEN_ATTRIBUTE);
     }
 }

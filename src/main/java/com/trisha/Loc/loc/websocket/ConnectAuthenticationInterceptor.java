@@ -22,9 +22,9 @@ import static java.util.Objects.isNull;
  */
 @Component
 @RequiredArgsConstructor
-public class ConnectAutenticacaoInterceptor implements ChannelInterceptor {
+public class ConnectAuthenticationInterceptor implements ChannelInterceptor {
 
-    public static final String ATRIBUTO_TOKEN = "token";
+    public static final String TOKEN_ATTRIBUTE = "token";
 
     private final JwtDecoder jwtDecoder;
 
@@ -47,9 +47,9 @@ public class ConnectAutenticacaoInterceptor implements ChannelInterceptor {
         Principal principal = jwt::getSubject;
         accessor.setUser(principal);
 
-        Map<String, Object> atributos = accessor.getSessionAttributes();
-        if (atributos != null) {
-            atributos.put(ATRIBUTO_TOKEN, token);
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        if (attributes != null) {
+            attributes.put(TOKEN_ATTRIBUTE, token);
         }
         return message;
     }

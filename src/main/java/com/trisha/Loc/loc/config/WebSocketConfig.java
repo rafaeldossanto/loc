@@ -1,6 +1,7 @@
 package com.trisha.Loc.loc.config;
 
-import com.trisha.Loc.loc.websocket.SubscribeAutorizacaoInterceptor;
+import com.trisha.Loc.loc.websocket.ConnectAuthenticationInterceptor;
+import com.trisha.Loc.loc.websocket.SubscribeAuthorizationInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -22,13 +23,13 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final com.trisha.Loc.loc.websocket.ConnectAutenticacaoInterceptor connectInterceptor;
-    private final SubscribeAutorizacaoInterceptor autorizacaoInterceptor;
+    private final ConnectAuthenticationInterceptor connectInterceptor;
+    private final SubscribeAuthorizationInterceptor authorizationInterceptor;
 
-    public WebSocketConfig(com.trisha.Loc.loc.websocket.ConnectAutenticacaoInterceptor connectInterceptor,
-                           SubscribeAutorizacaoInterceptor autorizacaoInterceptor) {
+    public WebSocketConfig(ConnectAuthenticationInterceptor connectInterceptor,
+                           SubscribeAuthorizationInterceptor authorizationInterceptor) {
         this.connectInterceptor = connectInterceptor;
-        this.autorizacaoInterceptor = autorizacaoInterceptor;
+        this.authorizationInterceptor = authorizationInterceptor;
     }
 
     @Override
@@ -46,6 +47,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(connectInterceptor, autorizacaoInterceptor);
+        registration.interceptors(connectInterceptor, authorizationInterceptor);
     }
 }

@@ -10,19 +10,19 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 @RequiredArgsConstructor
-public class AppAmizadeClient {
+public class AppFriendshipClient {
 
     private final RestClient appRestClient;
 
-    public boolean saoAmigos(String usuarioA, String usuarioB, String bearerToken) {
-        Boolean resultado = appRestClient.get()
+    public boolean areFriends(String userA, String userB, String bearerToken) {
+        Boolean result = appRestClient.get()
                 .uri(b -> b.path("/amizade/sao-amigos")
-                        .queryParam("a", usuarioA)
-                        .queryParam("b", usuarioB)
+                        .queryParam("a", userA)
+                        .queryParam("b", userB)
                         .build())
                 .header("Authorization", "Bearer " + bearerToken)
                 .retrieve()
                 .body(Boolean.class);
-        return Boolean.TRUE.equals(resultado);
+        return Boolean.TRUE.equals(result);
     }
 }

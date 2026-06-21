@@ -1,7 +1,7 @@
 package com.trisha.Loc.loc.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.trisha.Loc.loc.model.dto.response.PontoGpsResponse;
+import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;
@@ -18,9 +18,9 @@ import java.nio.charset.StandardCharsets;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class PontoGpsRedisSubscriber implements MessageListener {
+public class GpsPointRedisSubscriber implements MessageListener {
 
-    private static final String DESTINO_TOPICO_SESSAO = "/topic/sessao/";
+    private static final String SESSION_TOPIC_DESTINATION = "/topic/sessao/";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
@@ -29,8 +29,8 @@ public class PontoGpsRedisSubscriber implements MessageListener {
     public void onMessage(Message message, byte[] pattern) {
         try {
             String json = new String(message.getBody(), StandardCharsets.UTF_8);
-            PontoGpsResponse ponto = objectMapper.readValue(json, PontoGpsResponse.class);
-            messagingTemplate.convertAndSend(DESTINO_TOPICO_SESSAO + ponto.sessaoId(), ponto);
+            GpsPointResponse point = objectMapper.readValue(json, GpsPointResponse.class);
+            messagingTemplate.convertAndSend(SESSION_TOPIC_DESTINATION + point.sessionId(), point);
         } catch (Exception e) {
             log.error("Falha ao reentregar ponto recebido do Redis: {}", e.getMessage());
         }

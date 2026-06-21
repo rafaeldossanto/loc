@@ -1,6 +1,6 @@
 package com.trisha.Loc.loc.config;
 
-import com.trisha.Loc.loc.websocket.PontoGpsRedisSubscriber;
+import com.trisha.Loc.loc.websocket.GpsPointRedisSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -15,20 +15,20 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 @Configuration
 public class RedisConfig {
 
-    public static final String CANAL_PONTOS = "localizacao.pontos";
+    public static final String POINTS_CHANNEL = "localizacao.pontos";
 
     @Bean
-    public ChannelTopic canalPontos() {
-        return new ChannelTopic(CANAL_PONTOS);
+    public ChannelTopic pointsChannel() {
+        return new ChannelTopic(POINTS_CHANNEL);
     }
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
-            PontoGpsRedisSubscriber subscriber) {
+            GpsPointRedisSubscriber subscriber) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(subscriber, canalPontos());
+        container.addMessageListener(subscriber, pointsChannel());
         return container;
     }
 }

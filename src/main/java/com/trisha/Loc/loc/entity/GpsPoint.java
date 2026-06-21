@@ -25,14 +25,14 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PontoGps {
+public class GpsPoint {
 
     @Id
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sessao_id", nullable = false)
-    private SessaoRastreamento sessao;
+    private TrackingSession session;
 
     @Column(nullable = false)
     private Double latitude;
@@ -42,13 +42,15 @@ public class PontoGps {
 
     private Double altitude;
 
-    private Double precisao;
+    @Column(name = "precisao")
+    private Double accuracy;
 
-    private Double velocidade;
+    @Column(name = "velocidade")
+    private Double speed;
 
-    @Column(nullable = false)
-    private Integer ordem;
+    @Column(name = "ordem", nullable = false)
+    private Integer order;
 
-    @Column(nullable = false)
-    private LocalDateTime registradoEm;
+    @Column(name = "registrado_em", nullable = false)
+    private LocalDateTime recordedAt;
 }

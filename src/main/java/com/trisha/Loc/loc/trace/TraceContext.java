@@ -18,12 +18,12 @@ public final class TraceContext {
     }
 
     /** traceId atual da requisicao (do MDC), ou null fora de uma requisicao. */
-    public static String atual() {
+    public static String current() {
         return MDC.get(MDC_KEY);
     }
 
     /** Gera um traceId: inteiro aleatorio de 6 digitos (100000-999999). */
-    public static String gerar() {
+    public static String generate() {
         return Integer.toString(ThreadLocalRandom.current().nextInt(100_000, 1_000_000));
     }
 }

@@ -26,7 +26,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String traceId = request.getHeader(TraceContext.HEADER);
         if (traceId == null || traceId.isBlank()) {
-            traceId = TraceContext.gerar();
+            traceId = TraceContext.generate();
         }
         MDC.put(TraceContext.MDC_KEY, traceId);
         try {

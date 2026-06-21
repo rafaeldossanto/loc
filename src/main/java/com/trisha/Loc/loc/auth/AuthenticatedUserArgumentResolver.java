@@ -10,13 +10,13 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 /**
- * Resolve um parametro {@link UsuarioAutenticado} a partir do JWT validado.
+ * Resolve um parametro {@link AuthenticatedUser} a partir do JWT validado.
  */
-public class UsuarioAutenticadoArgumentResolver implements HandlerMethodArgumentResolver {
+public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentResolver {
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
-        return parameter.getParameterType().equals(UsuarioAutenticado.class);
+        return parameter.getParameterType().equals(AuthenticatedUser.class);
     }
 
     @Override
@@ -24,7 +24,7 @@ public class UsuarioAutenticadoArgumentResolver implements HandlerMethodArgument
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         if (SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
             Jwt jwt = token.getToken();
-            return new UsuarioAutenticado(jwt.getSubject(),
+            return new AuthenticatedUser(jwt.getSubject(),
                     jwt.getClaimAsString("codigoUsuario"),
                     jwt.getClaimAsString("email"));
         }

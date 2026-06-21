@@ -16,7 +16,7 @@ import org.springframework.messaging.MessageChannel;
  * Ingestao MQTT da telemetria GPS. O app mobile publica os pontos no broker
  * (resiliente a sinal fraco: o cliente bufferiza offline e despeja ao
  * reconectar). Este adapter entrega cada mensagem no canal de entrada, onde o
- * {@code LocalizacaoMqttHandler} a trata.
+ * {@code LocationMqttHandler} a trata.
  */
 @Configuration
 public class MqttConfig {
@@ -28,7 +28,7 @@ public class MqttConfig {
     private String clientId;
 
     @Value("${mqtt.topico}")
-    private String topico;
+    private String topic;
 
     @Value("${mqtt.qos}")
     private int qos;
@@ -52,7 +52,7 @@ public class MqttConfig {
     @Bean
     public MessageProducer mqttInbound() {
         MqttPahoMessageDrivenChannelAdapter adapter =
-                new MqttPahoMessageDrivenChannelAdapter(clientId, mqttClientFactory(), topico);
+                new MqttPahoMessageDrivenChannelAdapter(clientId, mqttClientFactory(), topic);
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(qos);

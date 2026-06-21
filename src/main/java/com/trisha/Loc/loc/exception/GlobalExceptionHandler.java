@@ -23,11 +23,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
-        String mensagem = ex.getBindingResult().getFieldErrors().stream()
+        String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .reduce("", (a, b) -> a + " | " + b);
-        log.warn("[EXCEPTION] Validacao: {}", mensagem);
-        return buildResponse(HttpStatus.BAD_REQUEST, mensagem);
+        log.warn("[EXCEPTION] Validacao: {}", message);
+        return buildResponse(HttpStatus.BAD_REQUEST, message);
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -42,11 +42,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erro inesperado");
     }
 
-    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String mensagem) {
+    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", status.value());
         body.put("erro", status.getReasonPhrase());
-        body.put("mensagem", mensagem);
+        body.put("mensagem", message);
         body.put("timestamp", LocalDateTime.now().toString());
         return ResponseEntity.status(status).body(body);
     }
