@@ -1,12 +1,15 @@
 package com.trisha.Loc.loc.service;
 
+import com.trisha.Loc.loc.client.AppFriendshipClient;
 import com.trisha.Loc.loc.entity.GpsPoint;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.model.dto.request.GpsPointRequest;
 import com.trisha.Loc.loc.model.dto.request.SessionRequest;
 import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;
+import com.trisha.Loc.loc.model.dto.response.LiveSessionResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionProgressResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionResponse;
+import com.trisha.Loc.loc.model.dto.response.TrailPointsResponse;
 import com.trisha.Loc.loc.model.enums.SessionStatus;
 import com.trisha.Loc.loc.model.enums.SessionVisibility;
 import com.trisha.Loc.loc.repository.GpsPointRepository;
@@ -38,6 +41,8 @@ class LocationServiceTest {
     private TrackingSessionRepository sessionRepository;
     @Mock
     private GpsPointRepository gpsPointRepository;
+    @Mock
+    private AppFriendshipClient appFriendshipClient;
 
     @InjectMocks
     private LocationService service;
@@ -426,5 +431,116 @@ class LocationServiceTest {
         assertThatThrownBy(() -> service.getProgress("inexistente"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Sessao nao encontrada");
+    }
+
+    @Test
+    @DisplayName("updateVisibility deve alterar a visibilidade quando o dono pede")
+    void shouldUpdateVisibility() {
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any(TrackingSession.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessionResponse response = service.updateVisibility(
+                SessionStub.USER_ID, SessionStub.SESSION_ID, SessionVisibility.SEGUIDORES);
+
+        assertThat(response.visibility()).isEqualTo(SessionVisibility.SEGUIDORES);
+    }
+
+    @Test
+    @DisplayName("updateVisibility deve falhar quando quem pede nao e o dono")
+    void shouldFailUpdateVisibilityNotOwner() {
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.updateVisibility(
+                "outro-usuario", SessionStub.SESSION_ID, SessionVisibility.PUBLICO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Apenas o dono");
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getLiveSessions aplica as regras de visibilidade e exclui as proprias sessoes")
+    void shouldListLiveSessionsRespectingVisibility() {
+        TrackingSession mine = SessionStub.aSession().visibility(SessionVisibility.PUBLICO).build();
+        TrackingSession publicSession = SessionStub.aSession()
+                .id("sessao-publica").userId("outro-1").visibility(SessionVisibility.PUBLICO).build();
+        TrackingSession followersSession = SessionStub.aSession()
+                .id("sessao-seguidores").userId("outro-2").visibility(SessionVisibility.SEGUIDORES).build();
+        TrackingSession privateSession = SessionStub.aSession()
+                .id("sessao-privada").userId("outro-3").visibility(SessionVisibility.PRIVADO).build();
+
+        when(sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO))
+                .thenReturn(List.of(mine, publicSession, followersSession, privateSession));
+        when(appFriendshipClient.isFollower(SessionStub.USER_ID, "outro-2", "tok")).thenReturn(true);
+        when(gpsPointRepository.findFirstBySessionIdOrderByOrderDesc("sessao-publica"))
+                .thenReturn(Optional.of(SessionStub.aPoint(3, -20.1, -41.1).build()));
+        when(gpsPointRepository.findFirstBySessionIdOrderByOrderDesc("sessao-seguidores"))
+                .thenReturn(Optional.of(SessionStub.aPoint(5, -20.2, -41.2).build()));
+
+        List<LiveSessionResponse> response = service.getLiveSessions(SessionStub.USER_ID, "tok");
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).sessionId()).isEqualTo("sessao-publica");
+        assertThat(response.get(0).latitude()).isEqualTo(-20.1);
+        assertThat(response.get(1).sessionId()).isEqualTo("sessao-seguidores");
+    }
+
+    @Test
+    @DisplayName("getLiveSessions omite sessao ao vivo que ainda nao tem ponto")
+    void shouldSkipLiveSessionWithoutPoints() {
+        TrackingSession session = SessionStub.aSession()
+                .id("sessao-vazia").userId("outro-1").visibility(SessionVisibility.PUBLICO).build();
+        when(sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO)).thenReturn(List.of(session));
+        when(gpsPointRepository.findFirstBySessionIdOrderByOrderDesc("sessao-vazia"))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.getLiveSessions(SessionStub.USER_ID, "tok")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getPointsInBoundingBox deve agrupar pontos por caminho preservando a ordem")
+    void shouldGroupBboxPointsByPath() {
+        TrackingSession other = SessionStub.aSession().id("sessao-2").pathId("caminho-2").build();
+        GpsPoint p1 = SessionStub.aPoint(1, -20.10, -41.10).build();
+        GpsPoint p2 = SessionStub.aPoint(2, -20.20, -41.20).build();
+        GpsPoint p3 = SessionStub.aPoint(1, -20.30, -41.30).session(other).build();
+        when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0))
+                .thenReturn(List.of(p1, p2, p3));
+
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 200);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).pathId()).isEqualTo(SessionStub.PATH_ID);
+        assertThat(response.get(0).points()).hasSize(2);
+        assertThat(response.get(0).points().get(0).latitude()).isEqualTo(-20.10);
+        assertThat(response.get(1).pathId()).isEqualTo("caminho-2");
+        assertThat(response.get(1).points()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("getPointsInBoundingBox deve decimar mantendo o primeiro e o ultimo ponto")
+    void shouldDecimateBboxPoints() {
+        List<GpsPoint> points = new java.util.ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            points.add(SessionStub.aPoint(i, -20.0 - i * 0.01, -41.0).build());
+        }
+        when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0)).thenReturn(points);
+
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 4);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).points()).hasSize(4);
+        assertThat(response.get(0).points().get(0).latitude()).isEqualTo(-20.01);
+        assertThat(response.get(0).points().get(3).latitude()).isEqualTo(-20.10);
+    }
+
+    @Test
+    @DisplayName("getPointsInBoundingBox deve falhar com bbox invertida")
+    void shouldFailInvalidBbox() {
+        assertThatThrownBy(() -> service.getPointsInBoundingBox(-20.0, -41.0, -21.0, -42.0, 200))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Bounding box invalida");
     }
 }

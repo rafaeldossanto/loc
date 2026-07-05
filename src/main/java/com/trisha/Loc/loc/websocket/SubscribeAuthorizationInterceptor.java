@@ -22,7 +22,8 @@ import static java.util.Objects.isNull;
  *  - PUBLICO: qualquer um acompanha;
  *  - PRIVADO: ninguem (nem o dono via topico) — so o proprio app local;
  *  - AMIGOS: o proprio dono ou quem for amigo dele (consulta ao servico APP,
- *    propagando o Bearer capturado no CONNECT).
+ *    propagando o Bearer capturado no CONNECT);
+ *  - SEGUIDORES: o proprio dono ou quem o segue (mesma consulta ao APP).
  */
 @Component
 @RequiredArgsConstructor
@@ -56,16 +57,14 @@ public class SubscribeAuthorizationInterceptor implements ChannelInterceptor {
         if (SessionVisibility.AMIGOS.equals(session.getVisibility())) {
             authorizeFriends(accessor, session);
         }
+        if (SessionVisibility.SEGUIDORES.equals(session.getVisibility())) {
+            authorizeFollowers(accessor, session);
+        }
         return message;
     }
 
     private void authorizeFriends(StompHeaderAccessor accessor, TrackingSession session) {
-        Principal user = accessor.getUser();
-        if (isNull(user)) {
-            throw new IllegalStateException("Assinante nao autenticado");
-        }
-
-        String subscriber = user.getName();
+        String subscriber = requireSubscriber(accessor);
         if (subscriber.equals(session.getUserId())) {
             return;
         }
@@ -73,6 +72,25 @@ public class SubscribeAuthorizationInterceptor implements ChannelInterceptor {
         if (!appFriendshipClient.areFriends(subscriber, session.getUserId(), token(accessor))) {
             throw new IllegalStateException("Apenas amigos podem acompanhar esta sessao");
         }
+    }
+
+    private void authorizeFollowers(StompHeaderAccessor accessor, TrackingSession session) {
+        String subscriber = requireSubscriber(accessor);
+        if (subscriber.equals(session.getUserId())) {
+            return;
+        }
+
+        if (!appFriendshipClient.isFollower(subscriber, session.getUserId(), token(accessor))) {
+            throw new IllegalStateException("Apenas seguidores podem acompanhar esta sessao");
+        }
+    }
+
+    private String requireSubscriber(StompHeaderAccessor accessor) {
+        Principal user = accessor.getUser();
+        if (isNull(user)) {
+            throw new IllegalStateException("Assinante nao autenticado");
+        }
+        return user.getName();
     }
 
     private String token(StompHeaderAccessor accessor) {

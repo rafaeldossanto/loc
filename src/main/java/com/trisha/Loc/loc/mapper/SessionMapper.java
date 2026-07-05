@@ -1,7 +1,9 @@
 package com.trisha.Loc.loc.mapper;
 
+import com.trisha.Loc.loc.entity.GpsPoint;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.model.dto.request.SessionRequest;
+import com.trisha.Loc.loc.model.dto.response.LiveSessionResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionProgressResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionResponse;
 import com.trisha.Loc.loc.model.enums.SessionVisibility;
@@ -44,6 +46,19 @@ public class SessionMapper {
                 .totalDistanceKm(entity.getTotalDistanceKm())
                 .startedAt(entity.getStartedAt())
                 .finishedAt(entity.getFinishedAt())
+                .build();
+    }
+
+    /** Sessao ao vivo com a ultima posicao conhecida (marcador no mapa). */
+    public static LiveSessionResponse toLive(TrackingSession session, GpsPoint lastPoint) {
+        return LiveSessionResponse.builder()
+                .sessionId(session.getId())
+                .pathId(session.getPathId())
+                .userId(session.getUserId())
+                .visibility(session.getVisibility())
+                .startedAt(session.getStartedAt())
+                .latitude(lastPoint.getLatitude())
+                .longitude(lastPoint.getLongitude())
                 .build();
     }
 

@@ -18,7 +18,9 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ponto_gps", indexes = {
-        @Index(name = "idx_ponto_gps_sessao", columnList = "sessao_id")
+        @Index(name = "idx_ponto_gps_sessao", columnList = "sessao_id"),
+        // Consulta por bounding box do mapa (lat/lng BETWEEN) a cada pan/zoom.
+        @Index(name = "idx_ponto_gps_lat_lng", columnList = "latitude, longitude")
 })
 @Getter
 @Setter

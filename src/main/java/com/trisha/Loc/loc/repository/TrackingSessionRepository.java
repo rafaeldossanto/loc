@@ -14,4 +14,7 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
     Optional<TrackingSession> findByPathId(String pathId);
 
     Optional<TrackingSession> findByUserIdAndStatus(String userId, SessionStatus status);
+
+    /** Sessoes ao vivo (EM_ANDAMENTO) — base da lista "quem esta trilhando agora". */
+    List<TrackingSession> findByStatus(SessionStatus status);
 }

@@ -1,5 +1,6 @@
 package com.trisha.Loc.loc.service;
 
+import com.trisha.Loc.loc.client.AppFriendshipClient;
 import com.trisha.Loc.loc.entity.GpsPoint;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.mapper.GpsPointMapper;
@@ -7,9 +8,12 @@ import com.trisha.Loc.loc.mapper.SessionMapper;
 import com.trisha.Loc.loc.model.dto.request.GpsPointRequest;
 import com.trisha.Loc.loc.model.dto.request.SessionRequest;
 import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;
+import com.trisha.Loc.loc.model.dto.response.LiveSessionResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionProgressResponse;
 import com.trisha.Loc.loc.model.dto.response.SessionResponse;
+import com.trisha.Loc.loc.model.dto.response.TrailPointsResponse;
 import com.trisha.Loc.loc.model.enums.SessionStatus;
+import com.trisha.Loc.loc.model.enums.SessionVisibility;
 import com.trisha.Loc.loc.repository.GpsPointRepository;
 import com.trisha.Loc.loc.repository.TrackingSessionRepository;
 import com.trisha.Loc.loc.util.GeoUtils;
@@ -20,7 +24,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,6 +41,7 @@ public class LocationService {
 
     private final TrackingSessionRepository sessionRepository;
     private final GpsPointRepository gpsPointRepository;
+    private final AppFriendshipClient appFriendshipClient;
 
     /** Desvio maximo (m) para um ponto ser considerado redundante num trecho reto. */
     private static final double SIMPLIFICATION_TOLERANCE_METERS = 8.0;
@@ -130,6 +139,24 @@ public class LocationService {
         }
     }
 
+    /**
+     * Troca quem pode acompanhar a sessao ao vivo, com ela em andamento — o
+     * usuario pode abrir (ex.: PRIVADO -> SEGUIDORES) ou fechar a trilha no
+     * meio do caminho. So o dono altera; quem ja assinava um topico que ficou
+     * mais restrito continua ate o proximo SUBSCRIBE (aceito no MVP).
+     */
+    public SessionResponse updateVisibility(String userId, String sessionId, SessionVisibility visibility) {
+        log.info("Alterando visibilidade da sessao {} para {}", sessionId, visibility);
+        TrackingSession session = findActiveSession(sessionId);
+
+        if (!session.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("Apenas o dono pode alterar a visibilidade da sessao");
+        }
+
+        session.setVisibility(visibility);
+        return SessionMapper.toResponse(sessionRepository.save(session));
+    }
+
     public SessionResponse cancelSession(String sessionId) {
         log.info("Cancelando sessao: {}", sessionId);
         TrackingSession session = findActiveSession(sessionId);
@@ -147,6 +174,25 @@ public class LocationService {
         );
     }
 
+    public SessionResponse getSession(String sessionId) {
+        return SessionMapper.toResponse(
+                sessionRepository.findById(sessionId)
+                        .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"))
+        );
+    }
+
+    /**
+     * O usuario pode acompanhar esta sessao ao vivo? Mesma regra do SUBSCRIBE
+     * no WebSocket — o BFF usa para liberar o catch-up (pontos ja gravados) de
+     * uma sessao em andamento cuja aventura ainda nao e visivel.
+     */
+    public boolean canWatchSession(String userId, String sessionId, String bearerToken) {
+        TrackingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+
+        return session.getUserId().equals(userId) || canWatch(userId, session, bearerToken);
+    }
+
     public List<GpsPointResponse> getPointsBySession(String sessionId) {
         return gpsPointRepository.findBySessionIdOrderByOrderAsc(sessionId)
                 .stream().map(GpsPointMapper::toResponse).toList();
@@ -157,6 +203,77 @@ public class LocationService {
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada para esse caminho"));
 
         return getPointsBySession(session.getId());
+    }
+
+    /**
+     * Sessoes em andamento que o usuario pode acompanhar ao vivo, com a ultima
+     * posicao conhecida. Mesmas regras do SUBSCRIBE no WebSocket: PUBLICO para
+     * todos, SEGUIDORES para quem segue o dono, AMIGOS para amigos, PRIVADO
+     * nunca; as proprias sessoes ficam de fora (o dono ja se ve rastreando).
+     * Sessao sem ponto registrado ainda nao aparece — nao ha o que mostrar.
+     */
+    public List<LiveSessionResponse> getLiveSessions(String userId, String bearerToken) {
+        return sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO).stream()
+                .filter(session -> !session.getUserId().equals(userId))
+                .filter(session -> canWatch(userId, session, bearerToken))
+                .map(session -> gpsPointRepository
+                        .findFirstBySessionIdOrderByOrderDesc(session.getId())
+                        .map(last -> SessionMapper.toLive(session, last)))
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    private boolean canWatch(String userId, TrackingSession session, String bearerToken) {
+        return switch (session.getVisibility()) {
+            case PUBLICO -> true;
+            case SEGUIDORES -> appFriendshipClient.isFollower(userId, session.getUserId(), bearerToken);
+            case AMIGOS -> appFriendshipClient.areFriends(userId, session.getUserId(), bearerToken);
+            case PRIVADO -> false;
+        };
+    }
+
+    /**
+     * Trilhas dentro da area visivel do mapa, agrupadas por caminho. Cada
+     * caminho volta com os pontos em ordem e decimados (no maximo
+     * maxPointsPerPath) — o app carrega so o viewport atual, nunca o mundo
+     * inteiro. Aqui e so geometria: quem filtra o que o usuario pode ver
+     * (visibilidade da aventura) e o APP, orquestrado pelo BFF.
+     */
+    public List<TrailPointsResponse> getPointsInBoundingBox(
+            double minLat, double minLng, double maxLat, double maxLng, int maxPointsPerPath) {
+        if (minLat > maxLat || minLng > maxLng) {
+            throw new IllegalArgumentException("Bounding box invalida: min maior que max");
+        }
+
+        List<GpsPoint> points = gpsPointRepository.findInBoundingBox(minLat, minLng, maxLat, maxLng);
+
+        Map<String, List<GpsPoint>> byPath = new LinkedHashMap<>();
+        points.forEach(point ->
+                byPath.computeIfAbsent(point.getSession().getPathId(), k -> new ArrayList<>()).add(point));
+
+        return byPath.entrySet().stream()
+                .map(entry -> new TrailPointsResponse(
+                        entry.getKey(),
+                        decimate(entry.getValue(), maxPointsPerPath).stream()
+                                .map(GpsPointMapper::toTrailPoint)
+                                .toList()))
+                .toList();
+    }
+
+    /**
+     * Reduz a trilha a no maximo max pontos com passo uniforme, preservando o
+     * primeiro e o ultimo — suficiente para a polyline no zoom do viewport.
+     */
+    private List<GpsPoint> decimate(List<GpsPoint> points, int max) {
+        if (max < 2 || points.size() <= max) {
+            return points;
+        }
+        List<GpsPoint> kept = new ArrayList<>(max);
+        double step = (double) (points.size() - 1) / (max - 1);
+        for (int i = 0; i < max; i++) {
+            kept.add(points.get((int) Math.round(i * step)));
+        }
+        return kept;
     }
 
     /**

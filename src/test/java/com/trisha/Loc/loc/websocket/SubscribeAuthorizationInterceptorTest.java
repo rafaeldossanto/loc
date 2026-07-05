@@ -119,6 +119,43 @@ class SubscribeAuthorizationInterceptorTest {
     }
 
     @Test
+    @DisplayName("SEGUIDORES libera quando o assinante segue o dono")
+    void shouldAllowFollower() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.SEGUIDORES).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(appFriendshipClient.isFollower("seguidor", SessionStub.USER_ID, "tok")).thenReturn(true);
+
+        Message<byte[]> msg = subscribe(topic(), "seguidor", "tok");
+
+        assertThat(interceptor.preSend(msg, channel)).isSameAs(msg);
+    }
+
+    @Test
+    @DisplayName("SEGUIDORES libera o proprio dono sem consultar seguimento")
+    void shouldAllowOwnerOnFollowersVisibility() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.SEGUIDORES).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+
+        Message<byte[]> msg = subscribe(topic(), SessionStub.USER_ID, "tok");
+
+        assertThat(interceptor.preSend(msg, channel)).isSameAs(msg);
+    }
+
+    @Test
+    @DisplayName("SEGUIDORES bloqueia quem nao segue o dono")
+    void shouldBlockNonFollower() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.SEGUIDORES).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(appFriendshipClient.isFollower("estranho", SessionStub.USER_ID, "tok")).thenReturn(false);
+
+        Message<byte[]> msg = subscribe(topic(), "estranho", "tok");
+
+        assertThatThrownBy(() -> interceptor.preSend(msg, channel))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("seguidores");
+    }
+
+    @Test
     @DisplayName("destino fora de /topic/sessao passa sem checar")
     void shouldIgnoreOtherDestinations() {
         Message<byte[]> msg = subscribe("/topic/outra-coisa", null, null);
