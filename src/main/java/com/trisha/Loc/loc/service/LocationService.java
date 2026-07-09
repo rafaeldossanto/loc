@@ -16,6 +16,7 @@ import com.trisha.Loc.loc.model.enums.SessionStatus;
 import com.trisha.Loc.loc.model.enums.SessionVisibility;
 import com.trisha.Loc.loc.repository.GpsPointRepository;
 import com.trisha.Loc.loc.repository.TrackingSessionRepository;
+import com.trisha.Loc.loc.repository.TrailPointView;
 import com.trisha.Loc.loc.util.GeoUtils;
 import com.trisha.Loc.loc.util.PathUtils;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,9 @@ public class LocationService {
 
     /** Desvio maximo (m) para um ponto ser considerado redundante num trecho reto. */
     private static final double SIMPLIFICATION_TOLERANCE_METERS = 8.0;
+
+    /** Teto de caminhos por consulta de bbox — protege o payload em areas densas. */
+    private static final int MAX_PATHS_PER_BBOX = 50;
 
     public SessionResponse startSession(String userId, SessionRequest request) {
         log.info("Iniciando sessao de rastreamento para caminho: {}", request.pathId());
@@ -190,7 +194,16 @@ public class LocationService {
         TrackingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
 
-        return session.getUserId().equals(userId) || canWatch(userId, session, bearerToken);
+        if (session.getUserId().equals(userId)) {
+            return true;
+        }
+        // Checagem unitaria (uma sessao): as consultas por par bastam aqui.
+        return switch (session.getVisibility()) {
+            case PUBLICO -> true;
+            case SEGUIDORES -> appFriendshipClient.isFollower(userId, session.getUserId(), bearerToken);
+            case AMIGOS -> appFriendshipClient.areFriends(userId, session.getUserId(), bearerToken);
+            case PRIVADO -> false;
+        };
     }
 
     public List<GpsPointResponse> getPointsBySession(String sessionId) {
@@ -211,11 +224,24 @@ public class LocationService {
      * todos, SEGUIDORES para quem segue o dono, AMIGOS para amigos, PRIVADO
      * nunca; as proprias sessoes ficam de fora (o dono ja se ve rastreando).
      * Sessao sem ponto registrado ainda nao aparece — nao ha o que mostrar.
+     * As checagens sociais sao EM LOTE: no maximo duas chamadas ao APP
+     * (amigos-ids e seguindo-ids), independente de quantas sessoes existam.
      */
     public List<LiveSessionResponse> getLiveSessions(String userId, String bearerToken) {
-        return sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO).stream()
+        List<TrackingSession> sessions = sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO).stream()
                 .filter(session -> !session.getUserId().equals(userId))
-                .filter(session -> canWatch(userId, session, bearerToken))
+                .toList();
+
+        // So consulta o APP se alguma sessao exigir aquela relacao.
+        Set<String> friends = sessions.stream().anyMatch(s -> SessionVisibility.AMIGOS.equals(s.getVisibility()))
+                ? Set.copyOf(appFriendshipClient.friendIds(bearerToken))
+                : Set.of();
+        Set<String> following = sessions.stream().anyMatch(s -> SessionVisibility.SEGUIDORES.equals(s.getVisibility()))
+                ? Set.copyOf(appFriendshipClient.followingIds(bearerToken))
+                : Set.of();
+
+        return sessions.stream()
+                .filter(session -> canWatch(session, friends, following))
                 .map(session -> gpsPointRepository
                         .findFirstBySessionIdOrderByOrderDesc(session.getId())
                         .map(last -> SessionMapper.toLive(session, last)))
@@ -223,11 +249,11 @@ public class LocationService {
                 .toList();
     }
 
-    private boolean canWatch(String userId, TrackingSession session, String bearerToken) {
+    private boolean canWatch(TrackingSession session, Set<String> friends, Set<String> following) {
         return switch (session.getVisibility()) {
             case PUBLICO -> true;
-            case SEGUIDORES -> appFriendshipClient.isFollower(userId, session.getUserId(), bearerToken);
-            case AMIGOS -> appFriendshipClient.areFriends(userId, session.getUserId(), bearerToken);
+            case SEGUIDORES -> following.contains(session.getUserId());
+            case AMIGOS -> friends.contains(session.getUserId());
             case PRIVADO -> false;
         };
     }
@@ -236,7 +262,9 @@ public class LocationService {
      * Trilhas dentro da area visivel do mapa, agrupadas por caminho. Cada
      * caminho volta com os pontos em ordem e decimados (no maximo
      * maxPointsPerPath) — o app carrega so o viewport atual, nunca o mundo
-     * inteiro. Aqui e so geometria: quem filtra o que o usuario pode ver
+     * inteiro. Ha tambem um teto de caminhos por resposta: numa area muito
+     * trilhada, devolve os primeiros e ignora o resto (aumentar o zoom traz
+     * os demais). Aqui e so geometria: quem filtra o que o usuario pode ver
      * (visibilidade da aventura) e o APP, orquestrado pelo BFF.
      */
     public List<TrailPointsResponse> getPointsInBoundingBox(
@@ -245,11 +273,20 @@ public class LocationService {
             throw new IllegalArgumentException("Bounding box invalida: min maior que max");
         }
 
-        List<GpsPoint> points = gpsPointRepository.findInBoundingBox(minLat, minLng, maxLat, maxLng);
+        List<TrailPointView> points = gpsPointRepository.findInBoundingBox(minLat, minLng, maxLat, maxLng);
 
-        Map<String, List<GpsPoint>> byPath = new LinkedHashMap<>();
-        points.forEach(point ->
-                byPath.computeIfAbsent(point.getSession().getPathId(), k -> new ArrayList<>()).add(point));
+        Map<String, List<TrailPointView>> byPath = new LinkedHashMap<>();
+        for (TrailPointView point : points) {
+            List<TrailPointView> group = byPath.get(point.getPathId());
+            if (group == null) {
+                if (byPath.size() >= MAX_PATHS_PER_BBOX) {
+                    continue;
+                }
+                group = new ArrayList<>();
+                byPath.put(point.getPathId(), group);
+            }
+            group.add(point);
+        }
 
         return byPath.entrySet().stream()
                 .map(entry -> new TrailPointsResponse(
@@ -264,11 +301,11 @@ public class LocationService {
      * Reduz a trilha a no maximo max pontos com passo uniforme, preservando o
      * primeiro e o ultimo — suficiente para a polyline no zoom do viewport.
      */
-    private List<GpsPoint> decimate(List<GpsPoint> points, int max) {
+    private List<TrailPointView> decimate(List<TrailPointView> points, int max) {
         if (max < 2 || points.size() <= max) {
             return points;
         }
-        List<GpsPoint> kept = new ArrayList<>(max);
+        List<TrailPointView> kept = new ArrayList<>(max);
         double step = (double) (points.size() - 1) / (max - 1);
         for (int i = 0; i < max; i++) {
             kept.add(points.get((int) Math.round(i * step)));

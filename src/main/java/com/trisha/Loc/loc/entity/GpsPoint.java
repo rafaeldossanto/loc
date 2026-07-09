@@ -16,11 +16,11 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+// O indice espacial da consulta por bbox (idx_ponto_gps_geo, GiST) e funcional
+// (expressao PostGIS) e vive na migration V4 — o JPA nao o declara.
 @Entity
 @Table(name = "ponto_gps", indexes = {
-        @Index(name = "idx_ponto_gps_sessao", columnList = "sessao_id"),
-        // Consulta por bounding box do mapa (lat/lng BETWEEN) a cada pan/zoom.
-        @Index(name = "idx_ponto_gps_lat_lng", columnList = "latitude, longitude")
+        @Index(name = "idx_ponto_gps_sessao", columnList = "sessao_id")
 })
 @Getter
 @Setter

@@ -5,6 +5,7 @@ import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.model.dto.request.GpsPointRequest;
 import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;
 import com.trisha.Loc.loc.model.dto.response.TrailPointResponse;
+import com.trisha.Loc.loc.repository.TrailPointView;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -28,8 +29,8 @@ public class GpsPointMapper {
     }
 
     /** Ponto enxuto para o desenho de trilhas no mapa (consulta por bbox). */
-    public static TrailPointResponse toTrailPoint(GpsPoint entity) {
-        return new TrailPointResponse(entity.getLatitude(), entity.getLongitude(), entity.getAltitude());
+    public static TrailPointResponse toTrailPoint(TrailPointView view) {
+        return new TrailPointResponse(view.getLatitude(), view.getLongitude(), view.getAltitude());
     }
 
     /**

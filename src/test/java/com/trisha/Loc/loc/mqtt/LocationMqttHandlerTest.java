@@ -1,6 +1,6 @@
 package com.trisha.Loc.loc.mqtt;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.model.dto.request.GpsPointRequest;
 import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;

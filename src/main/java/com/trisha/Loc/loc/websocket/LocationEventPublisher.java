@@ -1,7 +1,7 @@
 package com.trisha.Loc.loc.websocket;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.trisha.Loc.loc.config.RedisConfig;
 import com.trisha.Loc.loc.model.dto.response.GpsPointResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ public class LocationEventPublisher {
     public void publish(GpsPointResponse point) {
         try {
             redisTemplate.convertAndSend(RedisConfig.POINTS_CHANNEL, objectMapper.writeValueAsString(point));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             // A falha na difusao do tempo real nao pode derrubar o registro do ponto,
             // que ja foi persistido. Apenas registra o erro.
             log.error("Falha ao publicar ponto da sessao {} no Redis: {}", point.sessionId(), e.getMessage());

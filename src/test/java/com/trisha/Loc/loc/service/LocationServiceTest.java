@@ -14,6 +14,7 @@ import com.trisha.Loc.loc.model.enums.SessionStatus;
 import com.trisha.Loc.loc.model.enums.SessionVisibility;
 import com.trisha.Loc.loc.repository.GpsPointRepository;
 import com.trisha.Loc.loc.repository.TrackingSessionRepository;
+import com.trisha.Loc.loc.repository.TrailPointView;
 import com.trisha.Loc.loc.stub.SessionStub;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -473,7 +474,7 @@ class LocationServiceTest {
 
         when(sessionRepository.findByStatus(SessionStatus.EM_ANDAMENTO))
                 .thenReturn(List.of(mine, publicSession, followersSession, privateSession));
-        when(appFriendshipClient.isFollower(SessionStub.USER_ID, "outro-2", "tok")).thenReturn(true);
+        when(appFriendshipClient.followingIds("tok")).thenReturn(List.of("outro-2"));
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderDesc("sessao-publica"))
                 .thenReturn(Optional.of(SessionStub.aPoint(3, -20.1, -41.1).build()));
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderDesc("sessao-seguidores"))
@@ -502,12 +503,11 @@ class LocationServiceTest {
     @Test
     @DisplayName("getPointsInBoundingBox deve agrupar pontos por caminho preservando a ordem")
     void shouldGroupBboxPointsByPath() {
-        TrackingSession other = SessionStub.aSession().id("sessao-2").pathId("caminho-2").build();
-        GpsPoint p1 = SessionStub.aPoint(1, -20.10, -41.10).build();
-        GpsPoint p2 = SessionStub.aPoint(2, -20.20, -41.20).build();
-        GpsPoint p3 = SessionStub.aPoint(1, -20.30, -41.30).session(other).build();
         when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0))
-                .thenReturn(List.of(p1, p2, p3));
+                .thenReturn(List.of(
+                        view(SessionStub.PATH_ID, -20.10, -41.10),
+                        view(SessionStub.PATH_ID, -20.20, -41.20),
+                        view("caminho-2", -20.30, -41.30)));
 
         List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 200);
 
@@ -522,9 +522,9 @@ class LocationServiceTest {
     @Test
     @DisplayName("getPointsInBoundingBox deve decimar mantendo o primeiro e o ultimo ponto")
     void shouldDecimateBboxPoints() {
-        List<GpsPoint> points = new java.util.ArrayList<>();
+        List<TrailPointView> points = new java.util.ArrayList<>();
         for (int i = 1; i <= 10; i++) {
-            points.add(SessionStub.aPoint(i, -20.0 - i * 0.01, -41.0).build());
+            points.add(view(SessionStub.PATH_ID, -20.0 - i * 0.01, -41.0));
         }
         when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0)).thenReturn(points);
 
@@ -534,6 +534,44 @@ class LocationServiceTest {
         assertThat(response.get(0).points()).hasSize(4);
         assertThat(response.get(0).points().get(0).latitude()).isEqualTo(-20.01);
         assertThat(response.get(0).points().get(3).latitude()).isEqualTo(-20.10);
+    }
+
+    @Test
+    @DisplayName("getPointsInBoundingBox deve respeitar o teto de caminhos por resposta")
+    void shouldCapPathsPerBbox() {
+        List<TrailPointView> points = new java.util.ArrayList<>();
+        for (int i = 1; i <= 60; i++) {
+            points.add(view("caminho-" + i, -20.0, -41.0));
+        }
+        when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0)).thenReturn(points);
+
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 200);
+
+        assertThat(response).hasSize(50);
+    }
+
+    private TrailPointView view(String pathId, double latitude, double longitude) {
+        return new TrailPointView() {
+            @Override
+            public String getPathId() {
+                return pathId;
+            }
+
+            @Override
+            public Double getLatitude() {
+                return latitude;
+            }
+
+            @Override
+            public Double getLongitude() {
+                return longitude;
+            }
+
+            @Override
+            public Double getAltitude() {
+                return 800.0;
+            }
+        };
     }
 
     @Test
