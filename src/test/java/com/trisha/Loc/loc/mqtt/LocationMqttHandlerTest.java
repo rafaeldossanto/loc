@@ -48,11 +48,11 @@ class LocationMqttHandlerTest {
         GpsPointResponse response = GpsPointResponse.builder().sessionId(SessionStub.SESSION_ID).order(1).build();
         when(objectMapper.readValue(payload, GpsPointRequest.class)).thenReturn(request);
         when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
-        when(locationService.registerPoint(request)).thenReturn(response);
+        when(locationService.registerPoint(SessionStub.USER_ID, request)).thenReturn(response);
 
         handler.process(new GenericMessage<>(payload));
 
-        verify(locationService).registerPoint(request);
+        verify(locationService).registerPoint(SessionStub.USER_ID, request);
         verify(eventPublisher).publish(response);
     }
 
@@ -68,7 +68,7 @@ class LocationMqttHandlerTest {
 
         handler.process(new GenericMessage<>(payload));
 
-        verify(locationService, never()).registerPoint(any());
+        verify(locationService, never()).registerPoint(any(), any());
         verify(eventPublisher, never()).publish(any());
     }
 
@@ -81,7 +81,7 @@ class LocationMqttHandlerTest {
 
         handler.process(new GenericMessage<>(payload));
 
-        verify(locationService, never()).registerPoint(any());
+        verify(locationService, never()).registerPoint(any(), any());
         verify(eventPublisher, never()).publish(any());
     }
 }

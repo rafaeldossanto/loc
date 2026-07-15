@@ -45,6 +45,16 @@ public class AppFriendshipClient {
         return Boolean.TRUE.equals(result);
     }
 
+    /** O portador do token enxerga a aventura deste caminho? (visibilidade no APP). */
+    public boolean canViewPath(String pathId, String bearerToken) {
+        Boolean result = appRestClient.get()
+                .uri("/caminho/{id}/acesso", pathId)
+                .header("Authorization", "Bearer " + bearerToken)
+                .retrieve()
+                .body(Boolean.class);
+        return Boolean.TRUE.equals(result);
+    }
+
     /** Ids dos amigos do portador do token — checagem em lote (lista ao vivo). */
     public List<String> friendIds(String bearerToken) {
         List<String> ids = appRestClient.get()

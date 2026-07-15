@@ -43,20 +43,20 @@ public class LocationController {
      * mesmo padrao do fluxo MQTT: quem recebe o ponto publica o evento.
      */
     @PostMapping("/ponto")
-    public GpsPointResponse registerPoint(@RequestBody @Valid GpsPointRequest request) {
-        GpsPointResponse point = locationService.registerPoint(request);
+    public GpsPointResponse registerPoint(AuthenticatedUser user, @RequestBody @Valid GpsPointRequest request) {
+        GpsPointResponse point = locationService.registerPoint(user.id(), request);
         eventPublisher.publish(point);
         return point;
     }
 
     @PatchMapping("/sessao/{id}/finalizar")
-    public SessionResponse finishSession(@PathVariable String id) {
-        return locationService.finishSession(id);
+    public SessionResponse finishSession(AuthenticatedUser user, @PathVariable String id) {
+        return locationService.finishSession(user.id(), id);
     }
 
     @PatchMapping("/sessao/{id}/cancelar")
-    public SessionResponse cancelSession(@PathVariable String id) {
-        return locationService.cancelSession(id);
+    public SessionResponse cancelSession(AuthenticatedUser user, @PathVariable String id) {
+        return locationService.cancelSession(user.id(), id);
     }
 
     /** Troca quem acompanha ao vivo (PUBLICO/SEGUIDORES/AMIGOS/PRIVADO); so o dono. */
@@ -91,13 +91,17 @@ public class LocationController {
     }
 
     @GetMapping("/pontos/sessao/{sessaoId}")
-    public List<GpsPointResponse> getPointsBySession(@PathVariable("sessaoId") String sessionId) {
-        return locationService.getPointsBySession(sessionId);
+    public List<GpsPointResponse> getPointsBySession(AuthenticatedUser user,
+                                                     @PathVariable("sessaoId") String sessionId,
+                                                     @RequestHeader("Authorization") String authorization) {
+        return locationService.getPointsBySession(user.id(), sessionId, authorization.replaceFirst("^Bearer ", ""));
     }
 
     @GetMapping("/pontos/caminho/{caminhoId}")
-    public List<GpsPointResponse> getPointsByPath(@PathVariable("caminhoId") String pathId) {
-        return locationService.getPointsByPath(pathId);
+    public List<GpsPointResponse> getPointsByPath(AuthenticatedUser user,
+                                                  @PathVariable("caminhoId") String pathId,
+                                                  @RequestHeader("Authorization") String authorization) {
+        return locationService.getPointsByPath(user.id(), pathId, authorization.replaceFirst("^Bearer ", ""));
     }
 
     /**

@@ -103,7 +103,7 @@ class LocationServiceTest {
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(2);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        GpsPointResponse response = service.registerPoint(request);
+        GpsPointResponse response = service.registerPoint(SessionStub.USER_ID, request);
 
         assertThat(response.order()).isEqualTo(3);
         assertThat(response.sessionId()).isEqualTo(SessionStub.SESSION_ID);
@@ -118,7 +118,7 @@ class LocationServiceTest {
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(5);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        GpsPointResponse response = service.registerPoint(request);
+        GpsPointResponse response = service.registerPoint(SessionStub.USER_ID, request);
 
         assertThat(response.nearStart()).isNull();
         assertThat(response.distanceFromStartMeters()).isNull();
@@ -140,7 +140,7 @@ class LocationServiceTest {
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
                 .thenReturn(Optional.of(initial));
 
-        GpsPointResponse response = service.registerPoint(request);
+        GpsPointResponse response = service.registerPoint(SessionStub.USER_ID, request);
 
         assertThat(response.nearStart()).isTrue();
         assertThat(response.distanceFromStartMeters()).isLessThan(5.0);
@@ -161,7 +161,7 @@ class LocationServiceTest {
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
                 .thenReturn(Optional.of(initial));
 
-        GpsPointResponse response = service.registerPoint(request);
+        GpsPointResponse response = service.registerPoint(SessionStub.USER_ID, request);
 
         assertThat(response.nearStart()).isFalse();
         assertThat(response.distanceFromStartMeters()).isGreaterThan(5.0);
@@ -177,7 +177,7 @@ class LocationServiceTest {
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(0); // ordem 1
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        GpsPointResponse response = service.registerPoint(request);
+        GpsPointResponse response = service.registerPoint(SessionStub.USER_ID, request);
 
         assertThat(response.nearStart()).isNull();
         verify(gpsPointRepository, never()).findFirstBySessionIdOrderByOrderAsc(any());
@@ -248,11 +248,51 @@ class LocationServiceTest {
         TrackingSession session = SessionStub.aSession().status(SessionStatus.FINALIZADA).build();
         when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
 
-        assertThatThrownBy(() -> service.registerPoint(request))
+        assertThatThrownBy(() -> service.registerPoint(SessionStub.USER_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("nao esta em andamento");
 
         verify(gpsPointRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("registerPoint deve recusar quando quem envia nao e o dono da sessao")
+    void shouldRejectRegisterPointFromNonOwner() {
+        GpsPointRequest request = SessionStub.aPointRequest();
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.registerPoint("intruso", request))
+                .isInstanceOf(com.trisha.Loc.loc.exception.ForbiddenException.class)
+                .hasMessageContaining("Apenas o dono");
+
+        verify(gpsPointRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("finishSession deve recusar quando quem pede nao e o dono")
+    void shouldRejectFinishFromNonOwner() {
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.finishSession("intruso", SessionStub.SESSION_ID))
+                .isInstanceOf(com.trisha.Loc.loc.exception.ForbiddenException.class)
+                .hasMessageContaining("Apenas o dono");
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cancelSession deve recusar quando quem pede nao e o dono")
+    void shouldRejectCancelFromNonOwner() {
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.cancelSession("intruso", SessionStub.SESSION_ID))
+                .isInstanceOf(com.trisha.Loc.loc.exception.ForbiddenException.class)
+                .hasMessageContaining("Apenas o dono");
+
+        verify(sessionRepository, never()).save(any());
     }
 
     @Test
@@ -268,7 +308,7 @@ class LocationServiceTest {
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID)).thenReturn(points);
         when(sessionRepository.save(any(TrackingSession.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessionResponse response = service.finishSession(SessionStub.SESSION_ID);
+        SessionResponse response = service.finishSession(SessionStub.USER_ID, SessionStub.SESSION_ID);
 
         assertThat(response.status()).isEqualTo(SessionStatus.FINALIZADA);
         assertThat(response.finishedAt()).isNotNull();
@@ -285,7 +325,7 @@ class LocationServiceTest {
                 .thenReturn(List.of(SessionStub.aPoint(1, -20.43, -41.79).build()));
         when(sessionRepository.save(any(TrackingSession.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessionResponse response = service.finishSession(SessionStub.SESSION_ID);
+        SessionResponse response = service.finishSession(SessionStub.USER_ID, SessionStub.SESSION_ID);
 
         assertThat(response.totalDistanceKm()).isEqualTo(0.0);
     }
@@ -305,7 +345,7 @@ class LocationServiceTest {
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID)).thenReturn(points);
         when(sessionRepository.save(any(TrackingSession.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.finishSession(SessionStub.SESSION_ID);
+        service.finishSession(SessionStub.USER_ID, SessionStub.SESSION_ID);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<GpsPoint>> captor = ArgumentCaptor.forClass(List.class);
@@ -320,7 +360,7 @@ class LocationServiceTest {
         when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(sessionRepository.save(any(TrackingSession.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SessionResponse response = service.cancelSession(SessionStub.SESSION_ID);
+        SessionResponse response = service.cancelSession(SessionStub.USER_ID, SessionStub.SESSION_ID);
 
         assertThat(response.status()).isEqualTo(SessionStatus.CANCELADA);
         assertThat(response.finishedAt()).isNotNull();
@@ -331,7 +371,7 @@ class LocationServiceTest {
     void shouldFailMissingSession() {
         when(sessionRepository.findById("inexistente")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.cancelSession("inexistente"))
+        assertThatThrownBy(() -> service.cancelSession(SessionStub.USER_ID, "inexistente"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Sessao nao encontrada");
     }
@@ -358,31 +398,62 @@ class LocationServiceTest {
     }
 
     @Test
-    @DisplayName("getPointsBySession deve mapear lista ordenada")
+    @DisplayName("getPointsBySession deve mapear lista ordenada para o dono")
     void shouldListPointsBySession() {
+        TrackingSession session = SessionStub.aSession().build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
                 .thenReturn(List.of(
                         SessionStub.aPoint(1, -20.43, -41.79).build(),
                         SessionStub.aPoint(2, -20.43, -41.78).build()
                 ));
 
-        List<GpsPointResponse> response = service.getPointsBySession(SessionStub.SESSION_ID);
+        List<GpsPointResponse> response =
+                service.getPointsBySession(SessionStub.USER_ID, SessionStub.SESSION_ID, "tok");
 
         assertThat(response).hasSize(2);
         assertThat(response.get(0).order()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("getPointsByPath deve resolver a sessao e retornar seus pontos")
+    @DisplayName("getPointsBySession deve recusar sessao privada para quem nao e o dono")
+    void shouldRejectPrivateSessionPoints() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.PRIVADO).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(appFriendshipClient.canViewPath(SessionStub.PATH_ID, "tok")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getPointsBySession("intruso", SessionStub.SESSION_ID, "tok"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem acesso");
+
+        verify(gpsPointRepository, never()).findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID);
+    }
+
+    @Test
+    @DisplayName("getPointsByPath deve resolver a sessao e retornar seus pontos quando o caminho e visivel")
     void shouldListPointsByPath() {
+        when(appFriendshipClient.canViewPath(SessionStub.PATH_ID, "tok")).thenReturn(true);
         when(sessionRepository.findByPathId(SessionStub.PATH_ID))
                 .thenReturn(Optional.of(SessionStub.aSession().build()));
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
                 .thenReturn(List.of(SessionStub.aPoint(1, -20.43, -41.79).build()));
 
-        List<GpsPointResponse> response = service.getPointsByPath(SessionStub.PATH_ID);
+        List<GpsPointResponse> response =
+                service.getPointsByPath(SessionStub.USER_ID, SessionStub.PATH_ID, "tok");
 
         assertThat(response).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("getPointsByPath deve recusar quando o caminho nao e visivel ao observador")
+    void shouldRejectPointsByPathWhenNotVisible() {
+        when(appFriendshipClient.canViewPath(SessionStub.PATH_ID, "tok")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getPointsByPath("intruso", SessionStub.PATH_ID, "tok"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem acesso");
+
+        verify(sessionRepository, never()).findByPathId(SessionStub.PATH_ID);
     }
 
     @Test
@@ -455,7 +526,7 @@ class LocationServiceTest {
 
         assertThatThrownBy(() -> service.updateVisibility(
                 "outro-usuario", SessionStub.SESSION_ID, SessionVisibility.PUBLICO))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.trisha.Loc.loc.exception.ForbiddenException.class)
                 .hasMessageContaining("Apenas o dono");
 
         verify(sessionRepository, never()).save(any());

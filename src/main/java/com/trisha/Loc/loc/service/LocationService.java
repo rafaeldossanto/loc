@@ -2,6 +2,7 @@ package com.trisha.Loc.loc.service;
 
 import com.trisha.Loc.loc.client.AppFriendshipClient;
 import com.trisha.Loc.loc.entity.GpsPoint;
+import com.trisha.Loc.loc.exception.ForbiddenException;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.mapper.GpsPointMapper;
 import com.trisha.Loc.loc.mapper.SessionMapper;
@@ -68,8 +69,9 @@ public class LocationService {
         return SessionMapper.toResponse(session);
     }
 
-    public GpsPointResponse registerPoint(GpsPointRequest request) {
+    public GpsPointResponse registerPoint(String userId, GpsPointRequest request) {
         TrackingSession session = findActiveSession(request.sessionId());
+        ensureOwner(session, userId);
 
         int order = gpsPointRepository.countBySessionId(session.getId()) + 1;
         GpsPoint point = gpsPointRepository.save(GpsPointMapper.toEntity(request, session, order));
@@ -103,9 +105,10 @@ public class LocationService {
                 .orElseGet(() -> GpsPointMapper.toResponse(point));
     }
 
-    public SessionResponse finishSession(String sessionId) {
+    public SessionResponse finishSession(String userId, String sessionId) {
         log.info("Finalizando sessao: {}", sessionId);
         TrackingSession session = findActiveSession(sessionId);
+        ensureOwner(session, userId);
 
         List<GpsPoint> points = gpsPointRepository.findBySessionIdOrderByOrderAsc(sessionId);
 
@@ -154,16 +157,17 @@ public class LocationService {
         TrackingSession session = findActiveSession(sessionId);
 
         if (!session.getUserId().equals(userId)) {
-            throw new IllegalArgumentException("Apenas o dono pode alterar a visibilidade da sessao");
+            throw new ForbiddenException("Apenas o dono pode alterar a visibilidade da sessao");
         }
 
         session.setVisibility(visibility);
         return SessionMapper.toResponse(sessionRepository.save(session));
     }
 
-    public SessionResponse cancelSession(String sessionId) {
+    public SessionResponse cancelSession(String userId, String sessionId) {
         log.info("Cancelando sessao: {}", sessionId);
         TrackingSession session = findActiveSession(sessionId);
+        ensureOwner(session, userId);
 
         session.setStatus(SessionStatus.CANCELADA);
         session.setFinishedAt(LocalDateTime.now());
@@ -206,16 +210,37 @@ public class LocationService {
         };
     }
 
-    public List<GpsPointResponse> getPointsBySession(String sessionId) {
+    /**
+     * Trajeto de uma sessao. Libera para o dono; senao, so quem pode acompanhar a
+     * sessao ao vivo (regra do SUBSCRIBE, com ela em andamento) OU quem enxerga a
+     * aventura do caminho (visibilidade consultada no APP). Sem isso, qualquer
+     * portador de token leria os pontos de uma sessao PRIVADA chamando o loc direto.
+     */
+    public List<GpsPointResponse> getPointsBySession(String userId, String sessionId, String bearerToken) {
+        TrackingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+
+        boolean liveAndWatchable = SessionStatus.EM_ANDAMENTO.equals(session.getStatus())
+                && canWatchSession(userId, sessionId, bearerToken);
+        boolean allowed = liveAndWatchable || appFriendshipClient.canViewPath(session.getPathId(), bearerToken);
+        if (!allowed) {
+            throw new IllegalArgumentException("Sessao nao encontrada ou sem acesso");
+        }
+
         return gpsPointRepository.findBySessionIdOrderByOrderAsc(sessionId)
                 .stream().map(GpsPointMapper::toResponse).toList();
     }
 
-    public List<GpsPointResponse> getPointsByPath(String pathId) {
+    public List<GpsPointResponse> getPointsByPath(String userId, String pathId, String bearerToken) {
+        if (!appFriendshipClient.canViewPath(pathId, bearerToken)) {
+            throw new IllegalArgumentException("Caminho nao encontrado ou sem acesso");
+        }
+
         TrackingSession session = sessionRepository.findByPathId(pathId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada para esse caminho"));
 
-        return getPointsBySession(session.getId());
+        return gpsPointRepository.findBySessionIdOrderByOrderAsc(session.getId())
+                .stream().map(GpsPointMapper::toResponse).toList();
     }
 
     /**
@@ -356,5 +381,11 @@ public class LocationService {
             throw new IllegalArgumentException("Sessao nao esta em andamento");
         }
         return session;
+    }
+
+    private void ensureOwner(TrackingSession session, String userId) {
+        if (!session.getUserId().equals(userId)) {
+            throw new ForbiddenException("Apenas o dono pode operar esta sessao");
+        }
     }
 }

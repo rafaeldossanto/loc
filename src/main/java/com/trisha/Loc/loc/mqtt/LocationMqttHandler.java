@@ -41,7 +41,7 @@ public class LocationMqttHandler {
                 return;
             }
 
-            GpsPointResponse point = locationService.registerPoint(request);
+            GpsPointResponse point = locationService.registerPoint(request.userId(), request);
             eventPublisher.publish(point);
         } catch (Exception e) {
             log.error("Falha ao processar ponto recebido via MQTT: {}", e.getMessage());
