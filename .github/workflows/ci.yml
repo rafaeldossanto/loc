@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/trilha-loc
+
+jobs:
+  build-test:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle (cache de dependencias)
+        uses: gradle/actions/setup-gradle@v4
+
+      # 'check' ja depende de integrationTest; Testcontainers usa o Docker do runner.
+      - name: Build + testes (unitarios e integracao)
+        run: ./gradlew build
+
+      - name: Relatorios de teste (em caso de falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: build/reports/tests/
+
+      # O -plain.jar fica de fora para o COPY do Dockerfile casar com um unico jar.
+      - name: Guarda o boot jar para a imagem
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-plain.jar
+          retention-days: 1
+
+  docker-image:
+    name: Publica imagem no ghcr.io
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixa o boot jar do job de build
+        uses: actions/download-artifact@v4
+        with:
+          name: boot-jar
+          path: build/libs
+
+      - name: Login no ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags e labels da imagem
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,4 @@
+# So o jar de build/libs entra na imagem; o resto fica fora do contexto.
+*
+!build/libs/*.jar
+build/libs/*-plain.jar
