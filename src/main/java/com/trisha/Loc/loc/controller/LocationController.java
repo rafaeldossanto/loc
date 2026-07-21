@@ -34,7 +34,8 @@ public class LocationController {
     private final LocationEventPublisher eventPublisher;
 
     @PostMapping("/sessao")
-    public SessionResponse startSession(AuthenticatedUser user, @RequestBody @Valid SessionRequest request) {
+    public SessionResponse startSession(AuthenticatedUser user,
+                                        @RequestBody @Valid SessionRequest request) {
         return locationService.startSession(user.id(), request);
     }
 
@@ -43,19 +44,22 @@ public class LocationController {
      * mesmo padrao do fluxo MQTT: quem recebe o ponto publica o evento.
      */
     @PostMapping("/ponto")
-    public GpsPointResponse registerPoint(AuthenticatedUser user, @RequestBody @Valid GpsPointRequest request) {
+    public GpsPointResponse registerPoint(AuthenticatedUser user,
+                                          @RequestBody @Valid GpsPointRequest request) {
         GpsPointResponse point = locationService.registerPoint(user.id(), request);
         eventPublisher.publish(point);
         return point;
     }
 
     @PatchMapping("/sessao/{id}/finalizar")
-    public SessionResponse finishSession(AuthenticatedUser user, @PathVariable String id) {
+    public SessionResponse finishSession(AuthenticatedUser user,
+                                         @PathVariable String id) {
         return locationService.finishSession(user.id(), id);
     }
 
     @PatchMapping("/sessao/{id}/cancelar")
-    public SessionResponse cancelSession(AuthenticatedUser user, @PathVariable String id) {
+    public SessionResponse cancelSession(AuthenticatedUser user,
+                                         @PathVariable String id) {
         return locationService.cancelSession(user.id(), id);
     }
 
