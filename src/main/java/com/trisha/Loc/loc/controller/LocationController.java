@@ -72,13 +72,17 @@ public class LocationController {
     }
 
     @GetMapping("/sessao/caminho/{caminhoId}")
-    public SessionResponse getSessionByPath(@PathVariable("caminhoId") String pathId) {
-        return locationService.getSessionByPath(pathId);
+    public SessionResponse getSessionByPath(AuthenticatedUser user,
+                                            @PathVariable("caminhoId") String pathId,
+                                            @RequestHeader("Authorization") String authorization) {
+        return locationService.getSessionByPath(user.id(), pathId, authorization.replaceFirst("^Bearer ", ""));
     }
 
     @GetMapping("/sessao/{id}")
-    public SessionResponse getSession(@PathVariable String id) {
-        return locationService.getSession(id);
+    public SessionResponse getSession(AuthenticatedUser user,
+                                      @PathVariable String id,
+                                      @RequestHeader("Authorization") String authorization) {
+        return locationService.getSession(user.id(), id, authorization.replaceFirst("^Bearer ", ""));
     }
 
     /** O usuario autenticado pode acompanhar esta sessao? (regra do SUBSCRIBE). */
@@ -90,8 +94,10 @@ public class LocationController {
     }
 
     @GetMapping("/sessao/{sessaoId}/progresso")
-    public SessionProgressResponse getProgress(@PathVariable("sessaoId") String sessionId) {
-        return locationService.getProgress(sessionId);
+    public SessionProgressResponse getProgress(AuthenticatedUser user,
+                                               @PathVariable("sessaoId") String sessionId,
+                                               @RequestHeader("Authorization") String authorization) {
+        return locationService.getProgress(user.id(), sessionId, authorization.replaceFirst("^Bearer ", ""));
     }
 
     @GetMapping("/pontos/sessao/{sessaoId}")
@@ -121,11 +127,13 @@ public class LocationController {
 
     @GetMapping("/pontos/bbox")
     public List<TrailPointsResponse> getPointsInBoundingBox(
+            @RequestHeader("Authorization") String authorization,
             @RequestParam Double minLat,
             @RequestParam Double minLng,
             @RequestParam Double maxLat,
             @RequestParam Double maxLng,
             @RequestParam(name = "limitePorCaminho", defaultValue = "200") Integer maxPointsPerPath) {
-        return locationService.getPointsInBoundingBox(minLat, minLng, maxLat, maxLng, maxPointsPerPath);
+        return locationService.getPointsInBoundingBox(
+                authorization.replaceFirst("^Bearer ", ""), minLat, minLng, maxLat, maxLng, maxPointsPerPath);
     }
 }

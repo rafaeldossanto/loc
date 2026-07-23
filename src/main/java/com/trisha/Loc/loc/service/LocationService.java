@@ -23,6 +23,7 @@ import com.trisha.Loc.loc.util.PathUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -69,8 +70,16 @@ public class LocationService {
         return SessionMapper.toResponse(session);
     }
 
+    /**
+     * Grava um ponto GPS. Transacional e com lock de escrita na sessao: o numero
+     * de ordem vem de {@code count()+1}, entao gravacoes concorrentes da mesma
+     * sessao (REST + MQTT) precisam ser serializadas para nao gerar ordem
+     * duplicada. O lock e por sessao — sessoes diferentes nao se bloqueiam.
+     */
+    @Transactional
     public GpsPointResponse registerPoint(String userId, GpsPointRequest request) {
-        TrackingSession session = findActiveSession(request.sessionId());
+        TrackingSession session = requireInProgress(sessionRepository.findByIdForUpdate(request.sessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada")));
         ensureOwner(session, userId);
 
         int order = gpsPointRepository.countBySessionId(session.getId()) + 1;
@@ -175,18 +184,18 @@ public class LocationService {
         return SessionMapper.toResponse(sessionRepository.save(session));
     }
 
-    public SessionResponse getSessionByPath(String pathId) {
-        return SessionMapper.toResponse(
-                sessionRepository.findByPathId(pathId)
-                        .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada para esse caminho"))
-        );
+    public SessionResponse getSessionByPath(String userId, String pathId, String bearerToken) {
+        TrackingSession session = sessionRepository.findByPathId(pathId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada para esse caminho"));
+        ensureCanViewSession(userId, session, bearerToken);
+        return SessionMapper.toResponse(session);
     }
 
-    public SessionResponse getSession(String sessionId) {
-        return SessionMapper.toResponse(
-                sessionRepository.findById(sessionId)
-                        .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"))
-        );
+    public SessionResponse getSession(String userId, String sessionId, String bearerToken) {
+        TrackingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+        ensureCanViewSession(userId, session, bearerToken);
+        return SessionMapper.toResponse(session);
     }
 
     /**
@@ -197,7 +206,11 @@ public class LocationService {
     public boolean canWatchSession(String userId, String sessionId, String bearerToken) {
         TrackingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+        return watchAllowed(userId, session, bearerToken);
+    }
 
+    /** Acompanhamento ao vivo (regra do SUBSCRIBE): dono ou visibilidade da sessao. */
+    private boolean watchAllowed(String userId, TrackingSession session, String bearerToken) {
         if (session.getUserId().equals(userId)) {
             return true;
         }
@@ -208,6 +221,20 @@ public class LocationService {
             case AMIGOS -> appFriendshipClient.areFriends(userId, session.getUserId(), bearerToken);
             case PRIVADO -> false;
         };
+    }
+
+    /**
+     * Metadados/progresso da sessao so para quem pode acompanha-la ao vivo OU quem
+     * enxerga a aventura do caminho (visibilidade consultada no APP) — mesma regra
+     * de acesso dos pontos. Sem isso, qualquer portador de token leria os dados de
+     * uma sessao PRIVADA de outro usuario chamando o loc direto.
+     */
+    private void ensureCanViewSession(String userId, TrackingSession session, String bearerToken) {
+        if (watchAllowed(userId, session, bearerToken)
+                || appFriendshipClient.canViewPath(session.getPathId(), bearerToken)) {
+            return;
+        }
+        throw new IllegalArgumentException("Sessao nao encontrada ou sem acesso");
     }
 
     /**
@@ -289,10 +316,12 @@ public class LocationService {
      * maxPointsPerPath) — o app carrega so o viewport atual, nunca o mundo
      * inteiro. Ha tambem um teto de caminhos por resposta: numa area muito
      * trilhada, devolve os primeiros e ignora o resto (aumentar o zoom traz
-     * os demais). Aqui e so geometria: quem filtra o que o usuario pode ver
-     * (visibilidade da aventura) e o APP, orquestrado pelo BFF.
+     * os demais). A visibilidade (aventura do caminho) e filtrada no APP e o
+     * BFF ainda a reforca; o loc filtra aqui tambem para que uma chamada DIRETA
+     * (fora do BFF) nao vaze a geometria de trilhas privadas de terceiros.
      */
     public List<TrailPointsResponse> getPointsInBoundingBox(
+            String bearerToken,
             double minLat, double minLng, double maxLat, double maxLng, int maxPointsPerPath) {
         if (minLat > maxLat || minLng > maxLng) {
             throw new IllegalArgumentException("Bounding box invalida: min maior que max");
@@ -313,7 +342,10 @@ public class LocationService {
             group.add(point);
         }
 
+        Set<String> visiblePaths = appFriendshipClient.visiblePathIds(List.copyOf(byPath.keySet()), bearerToken);
+
         return byPath.entrySet().stream()
+                .filter(entry -> visiblePaths.contains(entry.getKey()))
                 .map(entry -> new TrailPointsResponse(
                         entry.getKey(),
                         decimate(entry.getValue(), maxPointsPerPath).stream()
@@ -344,9 +376,10 @@ public class LocationService {
      * durante a trilha em andamento. Em sessao finalizada, usa a distancia ja
      * gravada; em andamento, recalcula com os pontos atuais.
      */
-    public SessionProgressResponse getProgress(String sessionId) {
+    public SessionProgressResponse getProgress(String userId, String sessionId, String bearerToken) {
         TrackingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+        ensureCanViewSession(userId, session, bearerToken);
 
         List<GpsPoint> points = gpsPointRepository.findBySessionIdOrderByOrderAsc(sessionId);
 
@@ -374,9 +407,11 @@ public class LocationService {
     }
 
     private TrackingSession findActiveSession(String sessionId) {
-        TrackingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada"));
+        return requireInProgress(sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessao nao encontrada")));
+    }
 
+    private TrackingSession requireInProgress(TrackingSession session) {
         if (!SessionStatus.EM_ANDAMENTO.equals(session.getStatus())) {
             throw new IllegalArgumentException("Sessao nao esta em andamento");
         }

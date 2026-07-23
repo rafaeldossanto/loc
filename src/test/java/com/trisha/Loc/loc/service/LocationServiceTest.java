@@ -26,10 +26,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -99,7 +102,7 @@ class LocationServiceTest {
     void shouldRegisterPoint() {
         GpsPointRequest request = SessionStub.aPointRequest();
         TrackingSession session = SessionStub.aSession().build();
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(2);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -114,7 +117,7 @@ class LocationServiceTest {
     void shouldNotComputeProximityWhenFinishOff() {
         GpsPointRequest request = SessionStub.aPointRequest();
         TrackingSession session = SessionStub.aSession().autoFinish(false).build();
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(5);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -134,7 +137,7 @@ class LocationServiceTest {
                 .autoFinish(true).finishDistanceMeters(5.0).build();
         GpsPoint initial = SessionStub.aPoint(1, SessionStub.LATITUDE, SessionStub.LONGITUDE).build();
 
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(9);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
@@ -155,7 +158,7 @@ class LocationServiceTest {
                 .autoFinish(true).finishDistanceMeters(5.0).build();
         GpsPoint initial = SessionStub.aPoint(1, SessionStub.LATITUDE + 1.0, SessionStub.LONGITUDE).build();
 
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(3);
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
         when(gpsPointRepository.findFirstBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID))
@@ -173,7 +176,7 @@ class LocationServiceTest {
         GpsPointRequest request = SessionStub.aPointRequest();
         TrackingSession session = SessionStub.aSession()
                 .autoFinish(true).finishDistanceMeters(5.0).build();
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.countBySessionId(SessionStub.SESSION_ID)).thenReturn(0); // ordem 1
         when(gpsPointRepository.save(any(GpsPoint.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -246,7 +249,7 @@ class LocationServiceTest {
     void shouldFailRegisterOnFinishedSession() {
         GpsPointRequest request = SessionStub.aPointRequest();
         TrackingSession session = SessionStub.aSession().status(SessionStatus.FINALIZADA).build();
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> service.registerPoint(SessionStub.USER_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -260,7 +263,7 @@ class LocationServiceTest {
     void shouldRejectRegisterPointFromNonOwner() {
         GpsPointRequest request = SessionStub.aPointRequest();
         TrackingSession session = SessionStub.aSession().build();
-        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(sessionRepository.findByIdForUpdate(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> service.registerPoint("intruso", request))
                 .isInstanceOf(com.trisha.Loc.loc.exception.ForbiddenException.class)
@@ -382,7 +385,7 @@ class LocationServiceTest {
         when(sessionRepository.findByPathId(SessionStub.PATH_ID))
                 .thenReturn(Optional.of(SessionStub.aSession().build()));
 
-        SessionResponse response = service.getSessionByPath(SessionStub.PATH_ID);
+        SessionResponse response = service.getSessionByPath(SessionStub.USER_ID, SessionStub.PATH_ID, "tok");
 
         assertThat(response.pathId()).isEqualTo(SessionStub.PATH_ID);
     }
@@ -392,9 +395,33 @@ class LocationServiceTest {
     void shouldFailFindByMissingPath() {
         when(sessionRepository.findByPathId("sem-sessao")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getSessionByPath("sem-sessao"))
+        assertThatThrownBy(() -> service.getSessionByPath(SessionStub.USER_ID, "sem-sessao", "tok"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Sessao nao encontrada para esse caminho");
+    }
+
+    @Test
+    @DisplayName("getSession deve recusar sessao privada para quem nao e dono nem enxerga o caminho")
+    void shouldRejectSessionMetadataForOutsider() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.PRIVADO).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(appFriendshipClient.canViewPath(SessionStub.PATH_ID, "tok")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getSession("intruso", SessionStub.SESSION_ID, "tok"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem acesso");
+    }
+
+    @Test
+    @DisplayName("getSession deve liberar quando o observador enxerga o caminho da aventura")
+    void shouldAllowSessionMetadataWhenPathVisible() {
+        TrackingSession session = SessionStub.aSession().visibility(SessionVisibility.PRIVADO).build();
+        when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
+        when(appFriendshipClient.canViewPath(SessionStub.PATH_ID, "tok")).thenReturn(true);
+
+        SessionResponse response = service.getSession("observador", SessionStub.SESSION_ID, "tok");
+
+        assertThat(response.pathId()).isEqualTo(SessionStub.PATH_ID);
     }
 
     @Test
@@ -471,7 +498,7 @@ class LocationServiceTest {
         when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID)).thenReturn(points);
 
-        SessionProgressResponse progress = service.getProgress(SessionStub.SESSION_ID);
+        SessionProgressResponse progress = service.getProgress(SessionStub.USER_ID, SessionStub.SESSION_ID, "tok");
 
         assertThat(progress.totalPoints()).isEqualTo(2);
         assertThat(progress.traveledDistanceKm()).isBetween(0.9, 1.2);
@@ -489,7 +516,7 @@ class LocationServiceTest {
         when(sessionRepository.findById(SessionStub.SESSION_ID)).thenReturn(Optional.of(session));
         when(gpsPointRepository.findBySessionIdOrderByOrderAsc(SessionStub.SESSION_ID)).thenReturn(List.of());
 
-        SessionProgressResponse progress = service.getProgress(SessionStub.SESSION_ID);
+        SessionProgressResponse progress = service.getProgress(SessionStub.USER_ID, SessionStub.SESSION_ID, "tok");
 
         assertThat(progress.traveledDistanceKm()).isEqualTo(12.5);
         assertThat(progress.status()).isEqualTo(SessionStatus.FINALIZADA);
@@ -500,7 +527,7 @@ class LocationServiceTest {
     void shouldFailProgressMissing() {
         when(sessionRepository.findById("inexistente")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getProgress("inexistente"))
+        assertThatThrownBy(() -> service.getProgress(SessionStub.USER_ID, "inexistente", "tok"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Sessao nao encontrada");
     }
@@ -579,8 +606,10 @@ class LocationServiceTest {
                         view(SessionStub.PATH_ID, -20.10, -41.10),
                         view(SessionStub.PATH_ID, -20.20, -41.20),
                         view("caminho-2", -20.30, -41.30)));
+        when(appFriendshipClient.visiblePathIds(anyList(), anyString()))
+                .thenAnswer(inv -> Set.copyOf(inv.getArgument(0)));
 
-        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 200);
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox("tok", -21.0, -42.0, -20.0, -41.0, 200);
 
         assertThat(response).hasSize(2);
         assertThat(response.get(0).pathId()).isEqualTo(SessionStub.PATH_ID);
@@ -598,8 +627,10 @@ class LocationServiceTest {
             points.add(view(SessionStub.PATH_ID, -20.0 - i * 0.01, -41.0));
         }
         when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0)).thenReturn(points);
+        when(appFriendshipClient.visiblePathIds(anyList(), anyString()))
+                .thenAnswer(inv -> Set.copyOf(inv.getArgument(0)));
 
-        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 4);
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox("tok", -21.0, -42.0, -20.0, -41.0, 4);
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).points()).hasSize(4);
@@ -615,10 +646,28 @@ class LocationServiceTest {
             points.add(view("caminho-" + i, -20.0, -41.0));
         }
         when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0)).thenReturn(points);
+        when(appFriendshipClient.visiblePathIds(anyList(), anyString()))
+                .thenAnswer(inv -> Set.copyOf(inv.getArgument(0)));
 
-        List<TrailPointsResponse> response = service.getPointsInBoundingBox(-21.0, -42.0, -20.0, -41.0, 200);
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox("tok", -21.0, -42.0, -20.0, -41.0, 200);
 
         assertThat(response).hasSize(50);
+    }
+
+    @Test
+    @DisplayName("getPointsInBoundingBox deve excluir caminhos que o observador nao pode ver")
+    void shouldFilterInvisibleBboxPaths() {
+        when(gpsPointRepository.findInBoundingBox(-21.0, -42.0, -20.0, -41.0))
+                .thenReturn(List.of(
+                        view(SessionStub.PATH_ID, -20.10, -41.10),
+                        view("caminho-privado", -20.30, -41.30)));
+        when(appFriendshipClient.visiblePathIds(anyList(), anyString()))
+                .thenReturn(Set.of(SessionStub.PATH_ID));
+
+        List<TrailPointsResponse> response = service.getPointsInBoundingBox("tok", -21.0, -42.0, -20.0, -41.0, 200);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).pathId()).isEqualTo(SessionStub.PATH_ID);
     }
 
     private TrailPointView view(String pathId, double latitude, double longitude) {
@@ -648,7 +697,7 @@ class LocationServiceTest {
     @Test
     @DisplayName("getPointsInBoundingBox deve falhar com bbox invertida")
     void shouldFailInvalidBbox() {
-        assertThatThrownBy(() -> service.getPointsInBoundingBox(-20.0, -41.0, -21.0, -42.0, 200))
+        assertThatThrownBy(() -> service.getPointsInBoundingBox("tok", -20.0, -41.0, -21.0, -42.0, 200))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Bounding box invalida");
     }
