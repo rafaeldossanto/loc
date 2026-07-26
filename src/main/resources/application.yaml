@@ -51,6 +51,10 @@ mqtt:
   client-id: ${MQTT_CLIENT_ID:loc-consumer}
   topico: ${MQTT_TOPICO:localizacao/ponto}
   qos: ${MQTT_QOS:1}
+  # Vazio = conexao anonima (broker de dev). Em prod o Mosquitto exige auth
+  # (allow_anonymous false) — defina MQTT_USERNAME/MQTT_PASSWORD.
+  username: ${MQTT_USERNAME:}
+  password: ${MQTT_PASSWORD:}
 
 # URL do servico APP — consultada para a visibilidade AMIGOS (sao-amigos).
 servicos:

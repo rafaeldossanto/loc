@@ -33,6 +33,14 @@ public class MqttConfig {
     @Value("${mqtt.qos}")
     private int qos;
 
+    /** Credenciais do broker. Vazias em dev (broker local aceita anonimo); em
+     *  prod o Mosquitto exige usuario/senha (allow_anonymous false). */
+    @Value("${mqtt.username:}")
+    private String username;
+
+    @Value("${mqtt.password:}")
+    private String password;
+
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
@@ -40,6 +48,10 @@ public class MqttConfig {
         options.setServerURIs(new String[]{brokerUrl});
         options.setCleanSession(true);
         options.setAutomaticReconnect(true);
+        if (!username.isBlank()) {
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+        }
         factory.setConnectionOptions(options);
         return factory;
     }
