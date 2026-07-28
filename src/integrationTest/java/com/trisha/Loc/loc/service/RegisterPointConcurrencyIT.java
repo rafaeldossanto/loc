@@ -1,5 +1,6 @@
 package com.trisha.Loc.loc.service;
 
+import com.trisha.Loc.loc.LocIntegrationTest;
 import com.trisha.Loc.loc.entity.GpsPoint;
 import com.trisha.Loc.loc.entity.TrackingSession;
 import com.trisha.Loc.loc.model.dto.request.GpsPointRequest;
@@ -9,17 +10,8 @@ import com.trisha.Loc.loc.repository.GpsPointRepository;
 import com.trisha.Loc.loc.repository.TrackingSessionRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,25 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * simultaneas na MESMA sessao: com o lock pessimista na sessao, as ordens saem
  * exatamente 1..N, sem duplicata nem buraco.
  */
-@Tag("integracao")
-@SpringBootTest
-@Testcontainers
 @DisplayName("registerPoint (concorrencia)")
-class RegisterPointConcurrencyIT {
-
-    private static final DockerImageName POSTGIS_IMAGE = DockerImageName
-            .parse("postgis/postgis:16-3.4")
-            .asCompatibleSubstituteFor("postgres");
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgis = new PostgreSQLContainer<>(POSTGIS_IMAGE)
-            .withDatabaseName("trilha_localizacao");
-
-    @DynamicPropertySource
-    static void jpaProps(DynamicPropertyRegistry registry) {
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-    }
+class RegisterPointConcurrencyIT extends LocIntegrationTest {
 
     private static final String USER_ID = "usuario-concorrente";
     private static final int CONCURRENT_POINTS = 50;
